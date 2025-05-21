@@ -1,0 +1,32 @@
+name: Release Jfrog Kubelet Plugin
+# # This workflow releases the Jfrog Kubelet Plugin
+on:
+  push:
+    tags:
+      - v*
+
+jobs:
+  release:
+    runs-on: self-hosted
+    permissions:
+      contents: write 
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: '1.23'
+
+      - name: Build
+        run: |
+          cd build/
+          make build-all
+
+      - name: Upload release artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: {{ github.event.inputs.tag }}
+          files: |
+            build/bin/jfrog-credential-provider-aws-linux-amd64
+            build/bin/jfrog-credential-provider-aws-linux-arm64
+            build/bootstrap-{{ github.event.inputs.tag }}.sh
+            terraform-prod:jfrog-credential-provider-terraform-{{ github.event.inputs.tag }}.zip

@@ -1,0 +1,85 @@
+name: Test Jfrog Kubelet Plugin
+on:
+  workflow_dispatch:
+    inputs:
+      JFROG_CREDENTIAL_PLUGIN_BINARY_URL:
+        description: 'BINARY_URL'
+        required: true
+        default: "https://eldada.jfrog.io/artifactory/public-local/jfrog_credentials_provider/jfrog-credential-provider-aws-linux"
+        type: string
+
+permissions:
+  id-token: write
+  contents: read 
+
+env:
+  AWS_REGION: ap-northeast-3
+  TF_VERSION: 1.5.7
+
+jobs:
+  verify-kubelet-plugin:
+    runs-on: self-hosted
+    env:
+      JFROG_CI_ARTIFACTORY_API_TOKEN: ${{ secrets.JFROG_CI_ARTIFACTORY_API_TOKEN }}
+      JFROG_CREDENTIAL_PLUGIN_BINARY_URL: ${{ github.event.inputs.JFROG_CREDENTIAL_PLUGIN_BINARY_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v4.1.0
+        with:
+          role-to-assume: arn:aws:iam::095132750011:role/github-actions-kubelet-ci-role
+          role-session-name: kubelettestcisession
+          aws-region: ap-northeast-3
+      
+      - name: Verify if aws is connected
+        run: |
+          aws sts get-caller-identity
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Initialise Terraform
+        id: init
+        run: |
+          echo "" >> build/terraform.tfvars
+          echo "jfrog_credential_provider_binary_url=\"$JFROG_CREDENTIAL_PLUGIN_BINARY_URL\"" >> build/terraform.tfvars
+          cp build/terraform.tfvars terraform-aws/terraform.tfvars
+          cd terraform-aws
+          terraform init
+      
+      - name: Run Terraform CI
+        id: apply
+        run: |
+          cd terraform-aws
+          terraform apply -input=false -auto-approve
+          terraform output -json > terraform_output.json
+          echo "Terraform output: $(cat terraform_output.json)"
+
+      - name: Destroy terraform resources
+        id: destroy
+        if: always()
+        continue-on-error: true 
+        run: |
+          cd terraform-aws
+          terraform destroy -input=false -auto-approve
+          rm terraform.tfstate terraform.tfstate.backup terraform_output.json
+
+      - name: Upload Terraform context for manual cleanup
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-context-for-manual-cleanup
+          path: |
+            terraform-aws/**/*.tf
+            terraform-aws/jfrog/* 
+            terraform-aws/terraform.tfstate
+            terraform-aws/terraform.tfstate.backup
+            terraform-aws/terraform.tfvars
+            terraform-aws/.terraform.lock.hcl
+            terraform-aws/terraform_output.json
+          retention-days: 1
