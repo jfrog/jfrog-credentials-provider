@@ -1,0 +1,34 @@
+# =============================================================
+# EXAMPLE CONFIGURATION: USE EXISTING EKS CLUSTER
+# =============================================================
+# This example uses an existing EKS cluster and adds the 
+# JFrog Credential Provider to it.
+# Creates a node group and a daemonset
+
+region = "ap-northeast-3"
+
+# Node Group Configuration
+# node_group_desired_size = 2
+# node_group_max_size = 4
+# node_group_min_size = 1
+# node_group_instance_types = ["t3.medium"]
+# ami_type = "AL2023_ARM_64_STANDARD"
+
+# The JFrog Credential Provider binary URL (no authentication required)
+jfrog_credential_provider_binary_url = "https://<releases-url>"
+
+# The JFrog Artifactory URL (the one that will be the EKS container registry)
+artifactory_url  = "<artifactory-url>"
+# Change this to jfrogurl
+
+
+# The JFrog Artifactory username that will be granted the assume role permission
+artifactory_user = "aws-eks-user"
+
+create_eks_cluster = false
+
+self_managed_eks_cluster = {
+    name = "aws-operator-jfrog"
+}
+
+jfrog_namespace = "jfrog-new"
