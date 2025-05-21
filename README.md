@@ -1,0 +1,1 @@
+# Jfrog Credential Provider
