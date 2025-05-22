@@ -4,18 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	service "jfrog-credential-provider/internal"
-	signer "jfrog-credential-provider/internal/sign"
-	"log"
-	"net/http"
-	"net/url"
-	"strings"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
+	"io"
+	service "jfrog-credential-provider/internal"
+	signer "jfrog-credential-provider/internal/sign"
+	"net/http"
+	"net/url"
+	"strings"
 )
 
 const (
@@ -57,143 +55,136 @@ type SecretResult struct {
 	ClientId     string `json:"client-id"`
 }
 
-func GetAwsOidcToken(s *service.Service, ctx context.Context,
-	awsRoleName string, secretName string, userPoolName string, resourceServerName string, scope string) (string, error) {
-	s.Logger.Println("running aws oidc auth flow")
-	// get aws token
+func GetAwsOidcToken(s *service.Service, ctx context.Context, awsRoleName, secretName, userPoolName, resourceServerName, scope string) (string, error) {
+	s.Logger.Info("running aws oidc auth flow")
+
 	token, err := getToken(s, ctx)
 	if err != nil {
-		s.Logger.Println("Error getting aws token, ", err)
-		return "", err
+		return "", fmt.Errorf("error getting aws token: %v", err)
 	}
-	//log.Println("token", token)
-	// get temp credentials from metadata service
-	tempCredentials, err := getTempCredentials(s, ctx, token, awsRoleName)
+
+	region, err := getRegionOrDefault(s, ctx, token)
 	if err != nil {
-		s.Logger.Println("GetTempCredentials returned err ", err)
 		return "", err
 	}
-	s.Logger.Println("GetTempCredentials returned code ", tempCredentials.Code)
-	if tempCredentials.Code != "Success" {
-		s.Logger.Println("GetTempCredentials failed with retirned code ", tempCredentials.Code)
-		return "", fmt.Errorf("GetTempCredentials failed with retirned code %s", tempCredentials.Code)
+
+	secretResult, err := getSecretFromManager(s, secretName, region)
+	if err != nil {
+		return "", err
 	}
+
+	awsConfig, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion(region))
+	if err != nil {
+		return "", fmt.Errorf("error loading AWS config: %v", err)
+	}
+
+	resourceServerId, userPoolResourceDomain, err := getResourceServerId(s, awsConfig, userPoolName, resourceServerName)
+	if err != nil {
+		return "", err
+	}
+
+	return requestOidcToken(s, ctx, secretResult, resourceServerId, userPoolResourceDomain, scope, region)
+}
+
+func getRegionOrDefault(s *service.Service, ctx context.Context, token string) (string, error) {
 	region, err := getAWSRegion(s, ctx, token)
 	if err != nil {
-		s.Logger.Println("Error getting AWS region:", err, "using default region *")
-		region = "*"
-
-	} else {
-		s.Logger.Println("Region from SDK:", region)
+		s.Logger.Info("error getting AWS region: " + err.Error() + ", using default region *")
+		return "*", nil
 	}
+	s.Logger.Info("Region from SDK: " + region)
+	return region, nil
+}
+
+func getSecretFromManager(s *service.Service, secretName, region string) (SecretResult, error) {
 	config, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion(region))
 	if err != nil {
-		s.Logger.Println("Error loading default config", err)
+		return SecretResult{}, fmt.Errorf("error loading default config: %v", err)
 	}
-	// Create Secrets Manager client
+
 	svc := secretsmanager.NewFromConfig(config)
 	input := &secretsmanager.GetSecretValueInput{
 		SecretId: aws.String(secretName),
 	}
 	result, err := svc.GetSecretValue(context.TODO(), input)
 	if err != nil {
-		// For a list of exceptions thrown, see
-		// https://docs.aws.amazon.com/secretsmanager/latest/apireference/API_GetSecretValue.html
-		s.Logger.Printf("Error getting the secret: %s from secret manager", err.Error())
-		return "", err
+		return SecretResult{}, fmt.Errorf("error getting the secret from secret manager: %v", err)
 	}
 
-	// Decrypts secret using the associated KMS key.
-	var secretString string = *result.SecretString
-	var secretBytes = []byte(secretString)
-	//s.Logger.Println("secretString", secretString)
-	//get secret
 	var secretResult SecretResult
-	if err := json.Unmarshal(secretBytes, &secretResult); err != nil {
-		log.Println("get secret value from secret manager had an error, verify the secret used in the secret manager has the correct format: {\"client-secret\":\"user pool client id\",\"client-id\":\"user pool client secret\"}", err)
-		return "", fmt.Errorf("error unmarshaling JSON: %v", err)
+	if err := json.Unmarshal([]byte(*result.SecretString), &secretResult); err != nil {
+		return SecretResult{}, fmt.Errorf("error unmarshaling JSON: %v", err)
 	}
-	s.Logger.Println("Secret retrieved from secret manager")
-	resourceServerId, userPoolResourceDomain, err := getResourceServerId(s, config, userPoolName, resourceServerName)
-	if err != nil {
-		return "", err
-	}
-	s.Logger.Println("resourceServerId", resourceServerId)
-	//s.Logger.Println("secretString", secretResult.ClientSecret)
+
+	s.Logger.Info("Secret retrieved from secret manager")
+	return secretResult, nil
+}
+
+func requestOidcToken(s *service.Service, ctx context.Context, secretResult SecretResult, resourceServerId, userPoolResourceDomain, scope, region string) (string, error) {
 	data := url.Values{}
 	data.Set("grant_type", GRANT_TYPE)
 	data.Set("client_id", secretResult.ClientId)
 	data.Set("client_secret", secretResult.ClientSecret)
-	data.Set("scope", (resourceServerId + "/" + scope))
-	//s.Logger.Println("data", data)
+	data.Set("scope", resourceServerId+"/"+scope)
 
 	oidcUrl := strings.Replace(AWS_OIDC_TOKEN_URL, "$region", region, 1)
 	oidcUrl = strings.Replace(oidcUrl, "$user_pool_resource_domain", userPoolResourceDomain, 1)
-	s.Logger.Println("oidcUrl", oidcUrl)
+	s.Logger.Info("oidcUrl: " + oidcUrl)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", oidcUrl, strings.NewReader(data.Encode()))
 	if err != nil {
-		log.Println("NewRequestWithContext from aws oidc token failed ", err)
-		return "", err
+		return "", fmt.Errorf("error creating OIDC token request: %v", err)
 	}
-	// Add headers if needed
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
 
-	// Make the request
 	resp, err := s.Client.Do(req)
 	if err != nil {
-		log.Println("Calling aws oidc token failed ", err)
-		return "", err
+		return "", fmt.Errorf("error calling OIDC token API: %v", err)
 	}
 	defer resp.Body.Close()
 
-	// Read the response body
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("error reading OIDC token response: %v", err)
 	}
-	// Check if the status code is successful
+
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("POST oidc token API call failed with status code: %d, body: %s", resp.StatusCode, string(body))
+		return "", fmt.Errorf("OIDC token API call failed with status code: %d, body: %s", resp.StatusCode, string(body))
 	}
+
 	var oidcResult AwsOidcResult
 	if err := json.Unmarshal(body, &oidcResult); err != nil {
-		log.Println("get oidcResult response body ", string(body))
-		return "", fmt.Errorf("error unmarshaling JSON: %v", err)
+		return "", fmt.Errorf("error unmarshaling OIDC token response: %v", err)
 	}
 
 	return oidcResult.Token, nil
 }
 
 func GetAWSSignedRequest(s *service.Service, ctx context.Context, awsRoleName string) (*http.Request, error) {
-	s.Logger.Println("running aws assume role auth flow")
+	s.Logger.Info("running aws assume role auth flow")
 	// get token from metadata service
 	token, err := getToken(s, ctx)
 	if err != nil {
-		s.Logger.Println("Error getting aws token, ", err)
-		return nil, err
+		return nil, fmt.Errorf("Error getting aws token, ", err)
 	}
-	//log.Println("token", token)
 	// get temp credentials from metadata service
 	tempCredentials, err := getTempCredentials(s, ctx, token, awsRoleName)
 	if err != nil {
-		s.Logger.Println("GetTempCredentials returned err ", err)
-		return nil, err
+		return nil, fmt.Errorf("GetTempCredentials returned err ", err)
 	}
-	s.Logger.Println("GetTempCredentials returned code ", tempCredentials.Code)
+	s.Logger.Info("GetTempCredentials returned code :" + tempCredentials.Code)
 	if tempCredentials.Code != "Success" {
-		s.Logger.Println("GetTempCredentials failed with retirned code ", tempCredentials.Code)
 		return nil, fmt.Errorf("GetTempCredentials failed with retirned code %s", tempCredentials.Code)
 	}
 
 	// get aws region, failure in this operation will not affect the request signing and we will try and sign with * region
 	region, err := getAWSRegion(s, ctx, token)
 	if err != nil {
-		s.Logger.Println("Error getting AWS region:", err, "using default region *")
+		s.Logger.Info("error getting AWS region :" + err.Error() + "using default region *")
 		region = "*"
 
 	} else {
-		s.Logger.Println("Region from SDK:", region)
+		s.Logger.Info("Region from SDK :" + region)
 	}
 	// getting signed request headers for AWS STS GetCallerIdentity call
 	creds := &signer.AwsCredentials{
@@ -205,14 +196,13 @@ func GetAWSSignedRequest(s *service.Service, ctx context.Context, awsRoleName st
 	req, err := signer.SignV4a("GET",
 		"https://sts.amazonaws.com?Action=GetCallerIdentity&Version=2011-06-15", "sts", *creds)
 	if err != nil {
-		s.Logger.Printf("Error signing the request: %s", err)
-		return nil, err
+		return nil, fmt.Errorf("Error signing the request: %s", err)
 	}
 	return req, nil
 }
 
 func getToken(s *service.Service, ctx context.Context) (string, error) {
-	s.Logger.Println("TOKEN_URL", TOKEN_URL)
+	s.Logger.Info("TOKEN_URL :" + TOKEN_URL)
 	// Create a new request
 	req, err := http.NewRequestWithContext(ctx, "PUT", TOKEN_URL, nil)
 	if err != nil {
@@ -240,14 +230,10 @@ func getToken(s *service.Service, ctx context.Context) (string, error) {
 }
 
 func getTempCredentials(s *service.Service, ctx context.Context, token string, awsRoleName string) (TempCredentials, error) {
-	// Create a new HTTP client
-	//client := &http.Client{
-	//		Timeout: time.Second * 10, // Set timeout to 10 seconds
-	//	}
-	s.Logger.Println("TEMP_SESSION_URL", TOKEN_URL)
+	s.Logger.Info("TEMP_SESSION_URL :" + TOKEN_URL)
 	// Create a new request
 	url := TEMP_SESSION_URL + awsRoleName
-	s.Logger.Println("role temp session url", url)
+	s.Logger.Info("role temp session url :" + url)
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return TempCredentials{}, err
@@ -272,41 +258,33 @@ func getTempCredentials(s *service.Service, ctx context.Context, token string, a
 	}
 	var tempCredentials TempCredentials
 	if err := json.Unmarshal(body, &tempCredentials); err != nil {
-		log.Println("get temp credentials response body ", string(body))
 		return TempCredentials{}, fmt.Errorf("Error unmarshaling JSON: %v", err)
 	}
 	return tempCredentials, nil
 }
 
 func getAWSRegion(s *service.Service, ctx context.Context, token string) (string, error) {
-	// := &http.Client{
-	//		Timeout: time.Second * 10,
-	//	}
 	// Then get the region
 	req, err := http.NewRequestWithContext(ctx, "GET", REGION_URL, nil)
 	if err != nil {
-		s.Logger.Println("Error creating request to get AWS region:", err)
-		return "", err
+		return "", fmt.Errorf("Error creating request to get AWS region:", err)
 	}
 
 	req.Header.Add("X-aws-ec2-metadata-token", token)
 
 	resp, err := s.Client.Do(req)
 	if err != nil {
-		s.Logger.Println("Error getting AWS region:", err)
-		return "", err
+		return "", fmt.Errorf("Error getting AWS region:", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		s.Logger.Println("failed to get region from metadata service: ", resp.StatusCode)
 		return "", fmt.Errorf("failed to get region from metadata service: %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		s.Logger.Println("Error reading response body:", err)
-		return "", err
+		return "", fmt.Errorf("error reading response body: %v", err)
 	}
 
 	return string(body), nil
@@ -314,7 +292,7 @@ func getAWSRegion(s *service.Service, ctx context.Context, token string) (string
 
 func getUserPoolId(s *service.Service, cfg aws.Config,
 	cognitoSvc *cognitoidentityprovider.Client, userPoolName string) (string, error) {
-	s.Logger.Println("getting user pool id")
+	s.Logger.Info("getting user pool id")
 	// Initialize the pagination variables
 	var nextToken *string
 	// Loop through the user pools
@@ -327,14 +305,12 @@ func getUserPoolId(s *service.Service, cfg aws.Config,
 
 		result, err := cognitoSvc.ListUserPools(context.TODO(), input)
 		if err != nil {
-			s.Logger.Println("failed to list user pools:", err)
-			return "", err
+			return "", fmt.Errorf("failed to list user pools: %v", err)
 		}
-		//s.Logger.Println("result", result)
 		// Check if any user pools are present
 		for _, pool := range result.UserPools {
 			if strings.EqualFold(*pool.Name, userPoolName) {
-				s.Logger.Println("Found User Pool: ID", *pool.Id, "Name", *pool.Name)
+				s.Logger.Info("Found User Pool: ID " + *pool.Id + "Name" + *pool.Name)
 				return *pool.Id, nil // Exit once found
 			}
 		}
@@ -345,21 +321,19 @@ func getUserPoolId(s *service.Service, cfg aws.Config,
 		}
 	}
 
-	s.Logger.Println("User Pool not found")
 	return "", fmt.Errorf("user Pool not found")
 }
 
 func getResourceServerId(s *service.Service, cfg aws.Config, userPoolName string, resourceServerName string) (string, string, error) {
-	s.Logger.Println("getting resource server", resourceServerName, " id for user pool", userPoolName)
+	s.Logger.Info("getting resource server :" + resourceServerName + " id for user pool" + userPoolName)
 
 	// getting resource domain from cognito
 	cognitoSvc := cognitoidentityprovider.NewFromConfig(cfg)
 	userPoolId, err := getUserPoolId(s, cfg, cognitoSvc, userPoolName)
 	if err != nil {
-		s.Logger.Println("failed to get user pool id:", err)
-		return "", "", err
+		return "", "", fmt.Errorf("failed to get user pool id:", err)
 	}
-	s.Logger.Println("user pool id", userPoolId)
+	s.Logger.Info("user pool id :" + userPoolId)
 	// Retrieve detailed information about the user pool
 	describeInput := &cognitoidentityprovider.DescribeUserPoolInput{
 		UserPoolId: aws.String(userPoolId),
@@ -367,14 +341,12 @@ func getResourceServerId(s *service.Service, cfg aws.Config, userPoolName string
 	// Retrieve detailed information about the user pool
 	userPoolResult, err := cognitoSvc.DescribeUserPool(context.TODO(), describeInput)
 	if err != nil {
-		s.Logger.Println("failed to describe user pool:", err)
-		return "", "", err
+		return "", "", fmt.Errorf("failed to describe user pool:", err)
 	}
 	// Print the User Pool Domain
 	if userPoolResult.UserPool.Domain != nil {
-		s.Logger.Println("User Pool Domain:", *userPoolResult.UserPool.Domain)
+		s.Logger.Info("User Pool Domain :" + *userPoolResult.UserPool.Domain)
 	} else {
-		s.Logger.Println("No domain configured for this User Pool.")
 		return "", "", fmt.Errorf("domain was not found for user pool %s", userPoolId)
 	}
 	// Initialize the pagination variables
@@ -390,34 +362,13 @@ func getResourceServerId(s *service.Service, cfg aws.Config, userPoolName string
 
 		result, err := cognitoSvc.ListResourceServers(context.TODO(), input)
 		if err != nil {
-			s.Logger.Println("failed to list user pool resource servers:", err)
-			return "", "", err
+			return "", "", fmt.Errorf("failed to list user pool resource servers:", err)
 		}
 
 		// Check if any user pools are present
 		for _, resourceServer := range result.ResourceServers {
 			if strings.EqualFold(*resourceServer.Name, resourceServerName) {
-				s.Logger.Println("Found resource server: Identifier", *resourceServer.Identifier, " Name", *resourceServer.Name)
-				/*
-					// Retrieve detailed information about the user pool
-					describeInput := &cognitoidentityprovider.DescribeResourceServerInput{
-						UserPoolId: pool.Id,
-					}
-
-					describeResult, err := cognitoSvc.DescribeUserPool(context.TODO(), describeInput)
-					cognitoSvc.ListResourceServers()
-					if err != nil {
-						s.Logger.Println("failed to describe user pool:", err)
-					}
-
-					// Print the User Pool Domain
-					if describeResult.UserPool.Domain != nil {
-						s.Logger.Println("User Pool Domain:", *describeResult.UserPool.Domain)
-						s.Logger.Println("User Pool ResourceName:", *describeResult.UserPool.Domain.ResourceName)
-					} else {
-						s.Logger.Println("No domain configured for this User Pool.")
-					}
-				*/
+				s.Logger.Info("Found resource server : Identifier" + *resourceServer.Identifier + " Name" + *resourceServer.Name)
 				return *resourceServer.Identifier, *userPoolResult.UserPool.Domain, nil // Exit once found
 			}
 		}
@@ -428,7 +379,5 @@ func getResourceServerId(s *service.Service, cfg aws.Config, userPoolName string
 			break // Exit the loop if there are no more pages
 		}
 	}
-
-	s.Logger.Println("Resource Server not found")
 	return "", "", fmt.Errorf("resource Server not found")
 }

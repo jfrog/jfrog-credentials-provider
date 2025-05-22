@@ -1,12 +1,11 @@
 package handlers
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	service "jfrog-credential-provider/internal"
+	"jfrog-credential-provider/internal/utils"
 	"net/http"
 )
 
@@ -45,7 +44,7 @@ type OidcTokenRequest struct {
 func ExchangeOidcArtifactoryToken(s *service.Service, ctx context.Context,
 	token string, artifactoryUrl string, providerName string, audience string) (string, string, error) {
 	url := fmt.Sprintf("%s%s%s", "https://", artifactoryUrl, OIDC_ENDPOINT)
-	s.Logger.Println("RT oidc token url", url)
+	s.Logger.Info("RT oidc token url :" + url)
 
 	requestData := OidcTokenRequest{
 		GrantType:        "urn:ietf:params:oauth:grant-type:token-exchange",
@@ -60,33 +59,7 @@ func ExchangeOidcArtifactoryToken(s *service.Service, ctx context.Context,
 		return "", "", fmt.Errorf("error marshaling request: %v", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(body))
-	if err != nil {
-		return "", "", err
-	}
-	// set headers
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := s.Client.Do(req)
-	if err != nil {
-		return "", "", fmt.Errorf("error sending artifactory oidc token request, Cause %s", err)
-	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			s.Logger.Println("Could not close response body", err)
-		}
-	}(resp.Body)
-
-	if resp.StatusCode != http.StatusOK {
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			s.Logger.Println("cold not parse artifactory body ", err)
-		}
-		errMessage := fmt.Sprintf("%s%s%s%d%s%s%s", "Error getting artifactory oidc token request, token creation to ", url, " returned ", resp.StatusCode, " response", "body ", body)
-		return "", "", fmt.Errorf("message: %s", errMessage)
-	}
-
+	resp, err := utils.HttpReq(s, ctx, url, body, nil)
 	myResponse := &OidcAccessResponse{}
 	err = json.NewDecoder(resp.Body).Decode(myResponse)
 	if err != nil {
@@ -97,48 +70,15 @@ func ExchangeOidcArtifactoryToken(s *service.Service, ctx context.Context,
 
 func ExchangeAssumedRoleArtifactoryToken(s *service.Service, ctx context.Context, request *http.Request, artifactoryUrl string, secretTTL string) (string, string, error) {
 	url := fmt.Sprintf("%s%s%s", "https://", artifactoryUrl, AWS_TOKEN_ENDPOINT)
-	s.Logger.Println("RT token url", url)
+	s.Logger.Info("RT token url :" + url)
 	requestBody := fmt.Sprintf("%s%s%s", "{\"expires_in\": ", secretTTL, "}")
-	s.Logger.Println("RT requestBody", requestBody)
-
+	s.Logger.Info("RT requestBody :" + requestBody)
 	body := []byte(requestBody)
-	//client := &http.Client{
-	//		Timeout: time.Second * 10,
-	//	}
-	// Then get the region
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(body))
+
+	resp, err := utils.HttpReq(s, ctx, url, body, request)
 	if err != nil {
 		return "", "", err
 	}
-	// set headers
-	req.Header.Set("Content-Type", "application/json")
-	for k, v := range request.Header {
-		//s.Logger.Println("signed headers key=", k, " value", v[0])
-		req.Header.Add(k, v[0])
-	}
-
-	resp, err := s.Client.Do(req)
-	if err != nil {
-		return "", "", fmt.Errorf("Error sending artifactory create token request, Cause %s", err)
-	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			s.Logger.Println("Could not close response body", err)
-		}
-	}(resp.Body)
-
-	//s.logger.Println("resp.Body", resp.Body)
-
-	if resp.StatusCode != http.StatusOK {
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			s.Logger.Println("cold not parse artifactory body ", err)
-		}
-		errMessage := fmt.Sprintf("%s%s%s%d%s%s%s", "Error getting artifactory token request, token creation to ", url, " returned ", resp.StatusCode, " response", "body ", body)
-		return "", "", fmt.Errorf("message: %s", errMessage)
-	}
-
 	myResponse := &AwsRoleAccessResponse{}
 	err = json.NewDecoder(resp.Body).Decode(myResponse)
 	if err != nil {

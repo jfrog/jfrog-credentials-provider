@@ -1,16 +1,16 @@
 package service
 
 import (
-	"log"
+	"jfrog-credential-provider/internal/logger"
 	"net/http"
 )
 
 type Service struct {
 	Client *http.Client
-	Logger *log.Logger
+	Logger logger.Logger
 }
 
-func NewService(client *http.Client, logger *log.Logger) *Service {
+func NewService(client *http.Client, logger logger.Logger) *Service {
 	return &Service{
 		Client: client,
 		Logger: logger,
