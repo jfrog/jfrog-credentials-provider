@@ -15,4 +15,5 @@ all: build
 .PHONY: build-all
 build-all:
 	@echo "Building go binaries for all OSs..."
-	PLATFORMS="$(PLATFORMS)" BUILD_DIR=$(BUILD_DIR) BIN=$(BIN) ./build-binary.sh
+	VERSION := $(shell git describe --tags --always)
+	PLATFORMS="$(PLATFORMS)" BUILD_DIR=$(BUILD_DIR) BIN=$(BIN) VERSION=$(VERSION) ./build-binary.sh
