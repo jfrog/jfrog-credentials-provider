@@ -24,12 +24,12 @@ func HttpReq(s *service.Service, ctx context.Context, url string, body []byte, r
 	if err != nil {
 		return nil, fmt.Errorf("Error sending artifactory create token request, Cause %s", err)
 	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			s.Logger.Error("Could not close response body" + err.Error())
-		}
-	}(resp.Body)
+	// defer func(Body io.ReadCloser) {
+	// 	err := Body.Close()
+	// 	if err != nil {
+	// 		s.Logger.Error("Could not close response body" + err.Error())
+	// 	}
+	// }(resp.Body)
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)

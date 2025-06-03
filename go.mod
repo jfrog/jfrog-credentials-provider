@@ -1,15 +1,18 @@
 module jfrog-credential-provider
 
-go 1.22.0
+go 1.23.0
 
-toolchain go1.22.9
+toolchain go1.24.3
 
 require github.com/aws/smithy-go v1.22.1
 
 require (
 	github.com/aws/aws-sdk-go-v2/config v1.28.7
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.34.8
+	golang.org/x/crypto v0.38.0
 )
+
+require golang.org/x/mod v0.24.0
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.32.7
