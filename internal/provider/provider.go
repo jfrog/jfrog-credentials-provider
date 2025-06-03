@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	service "jfrog-credential-provider/internal"
 	"jfrog-credential-provider/internal/handlers"
 	"jfrog-credential-provider/internal/logger"
+	"jfrog-credential-provider/internal/autoupdate"
+	"jfrog-credential-provider/internal/utils"
 	"log"
 	"net/http"
 	"os"
@@ -21,29 +24,6 @@ const (
 	logPrefix          = "[JFROG CREDENTIALS PROVIDER] "
 )
 
-// CredentialProviderRequest is the request sent by the kubelet.
-type CredentialProviderRequest struct {
-	ApiVersion string `json:"apiVersion"`
-	Kind       string `json:"kind"`
-	Image      string `json:"image"`
-}
-
-type AuthCredential struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
-type AuthSection struct {
-	Registry map[string]AuthCredential `json:"-"`
-}
-
-// CredentialProviderResponse is the response expected by the kubelet.
-type CredentialProviderResponse struct {
-	ApiVersion   string      `json:"apiVersion"`
-	Kind         string      `json:"kind"`
-	CacheKeyType string      `json:"cacheKeyType"`
-	Auth         AuthSection `json:"auth"`
-}
-
 func extractRepository(imagePath string) string {
 	if imagePath == "" {
 		return ""
@@ -55,17 +35,7 @@ func extractRepository(imagePath string) string {
 	return parts[0]
 }
 
-func (a AuthSection) MarshalJSON() ([]byte, error) {
-	// Create a map to hold our custom JSON structure
-	m := map[string]interface{}{}
-	// Add all registry credentials directly to the map
-	for k, v := range a.Registry {
-		m[k] = v
-	}
-	return json.Marshal(m)
-}
-
-func StartProvider(ctx context.Context) {
+func StartProvider(ctx context.Context, Version string) {
 	logs, request := initializeLoggerAndParseRequest()
 	awsAuthMethod, artifactoryUrl, awsRoleName := validateEnvVariables(logs)
 
@@ -83,21 +53,32 @@ func StartProvider(ctx context.Context) {
 		},
 	}
 	svc := service.NewService(client, *logs)
+	// wait group for autoupdate goroutine
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+		autoupdate.AutoUpdate(logs, client, ctx, Version)
+	}()
+
 
 	rtUsername, rtToken := handleAWSAuth(svc, ctx, logs, awsAuthMethod, awsRoleName, artifactoryUrl, secretTTL)
 	logs.Info("JFrog Username used for pull :" + rtUsername)
 
 	generateAndOutputResponse(logs, request, rtUsername, rtToken)
+	// wait until autoupdate is finished before terminating main process
+	wg.Wait()
 }
 
-func initializeLoggerAndParseRequest() (*logger.Logger, CredentialProviderRequest) {
+func initializeLoggerAndParseRequest() (*logger.Logger, utils.CredentialProviderRequest) {
 	logs, err := logger.NewLogger()
 	if err != nil {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}
 	logs.Info("Running JFrog Credentials provider...")
 
-	var request CredentialProviderRequest
+	var request utils.CredentialProviderRequest
 	if err := json.NewDecoder(os.Stdin).Decode(&request); err != nil {
 		logs.Exit("Error reading stdin :"+err.Error(), 1)
 	}
@@ -173,13 +154,13 @@ func handleAWSAuth(svc *service.Service, ctx context.Context, logs *logger.Logge
 	return rtUsername, rtToken
 }
 
-func generateAndOutputResponse(logs *logger.Logger, request CredentialProviderRequest, rtUsername, rtToken string) {
-	response := CredentialProviderResponse{
+func generateAndOutputResponse(logs *logger.Logger, request utils.CredentialProviderRequest, rtUsername, rtToken string) {
+	response := utils.CredentialProviderResponse{
 		ApiVersion:   "credentialprovider.kubelet.k8s.io/v1",
-		Kind:         "CredentialProviderResponse",
+		Kind:         "utils.CredentialProviderResponse",
 		CacheKeyType: "Registry",
-		Auth: AuthSection{
-			Registry: map[string]AuthCredential{
+		Auth: utils.AuthSection{
+			Registry: map[string]utils.AuthCredential{
 				extractRepository(request.Image): {
 					Username: rtUsername,
 					Password: rtToken,

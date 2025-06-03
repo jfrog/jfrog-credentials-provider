@@ -65,6 +65,7 @@ func ExchangeOidcArtifactoryToken(s *service.Service, ctx context.Context,
 	if err != nil {
 		return "", "", fmt.Errorf("error reading artifactory response")
 	}
+	resp.Body.Close()
 	return myResponse.Username, myResponse.AccessToken, nil
 }
 
@@ -84,5 +85,6 @@ func ExchangeAssumedRoleArtifactoryToken(s *service.Service, ctx context.Context
 	if err != nil {
 		return "", "", fmt.Errorf("Error reading artifactory response")
 	}
+	resp.Body.Close() // Close the response body to prevent resource leaks
 	return myResponse.Username, myResponse.AccessToken, nil
 }
