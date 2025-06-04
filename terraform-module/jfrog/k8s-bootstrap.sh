@@ -47,16 +47,7 @@ else
 
     # Update the kubelet configuration to use the jfrog-credential-provider
     echo "Updating the kubelet configuration to use the jfrog-credential-provider"
-    jq '.providers += [input]' ${IMAGE_CREDENTIAL_PROVIDER_DIR}/config.json /etc/jfrog-provider.json > ${IMAGE_CREDENTIAL_PROVIDER_DIR}/combined-config.json
-
-    # Replace the kubelet configuration with the updated configuration
-    if [[ $? -ne 0 ]]; then
-        echo "Failed to build the combined configuration, will keep using the original config.json"
-    else
-        echo "Overriding the default configuration with the new configuration. The original config.json is backed up as config_back.json"
-        cp -f ${IMAGE_CREDENTIAL_PROVIDER_DIR}/config.json ${IMAGE_CREDENTIAL_PROVIDER_DIR}/config_back.json
-        cp -f ${IMAGE_CREDENTIAL_PROVIDER_DIR}/combined-config.json ${IMAGE_CREDENTIAL_PROVIDER_DIR}/config.json
-    fi
+    ${IMAGE_CREDENTIAL_PROVIDER_DIR}/jfrog-credential-provider add-provider-config
 
     log "The final ${IMAGE_CREDENTIAL_PROVIDER_CONFIG}:"
     cat ${IMAGE_CREDENTIAL_PROVIDER_CONFIG}
