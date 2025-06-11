@@ -1,10 +1,10 @@
-# JFrog Kubelet Credential Provider
+# JFrog Credential Provider
 
 A Kubernetes kubelet credential provider that enables seamless authentication with JFrog Artifactory for container image pulls in Amazon EKS, eliminating the need for manual image pull secret management.
 
 ## Overview
 
-The JFrog Kubelet Credential Provider leverages the native Kubernetes Kubelet Credential Provider feature to dynamically retrieve credentials for pulling container images from JFrog Artifactory. This approach provides several key benefits:
+The JFrog Credential Provider leverages the native Kubernetes Kubelet Credential Provider feature to dynamically retrieve credentials for pulling container images from JFrog Artifactory. This approach provides several key benefits:
 
 - **No Image Pull Secrets**: Eliminates the need to create and manage Kubernetes secrets
 - **Enhanced Security**: Credentials are retrieved dynamically rather than stored in etcd
