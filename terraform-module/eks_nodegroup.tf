@@ -109,7 +109,7 @@ module "eks_managed_node_group" {
     iam_role_arn                = var.eks_node_group_configuration.node_role_arn
 
     pre_bootstrap_user_data = <<-EOF
-        echo '${local.jfrog_provider_config_content}' > /etc/eks/image-credential-provider/jfrog-credential-config.json
+        echo '${local.jfrog_provider_config_content}' > /etc/eks/image-credential-provider/jfrog-provider.json
 
         export JFROG_CREDENTIAL_PROVIDER_BINARY_URL="${var.jfrog_credential_provider_binary_url}"
         export ARTIFACTORY_URL="${var.artifactory_url}"

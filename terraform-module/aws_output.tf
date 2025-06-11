@@ -10,7 +10,7 @@ resource "local_file" "pre_bootstrap_user_data" {
         Mime-Version: 1.0
 
 
-        echo '${local.jfrog_provider_content}' > /etc/eks/image-credential-provider/jfrog-credential-config.json
+        echo '${local.jfrog_provider_content}' > /etc/eks/image-credential-provider/jfrog-provider.json
 
         export JFROG_CREDENTIAL_PROVIDER_BINARY_URL="${var.jfrog_credential_provider_binary_url}"
         export ARTIFACTORY_URL="${var.artifactory_url}"
