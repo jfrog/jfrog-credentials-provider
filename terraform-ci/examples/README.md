@@ -16,24 +16,6 @@ This directory contains example configurations for deploying the JFrog Credentia
 - **Resources Created**: New worker node group, IAM roles
 - **Time to Deploy**: ~5-10 minutes
 
-## Choosing the Right Example
-
-| Scenario | Example to Use | Notes |
-|----------|---------------|--------|
-| First time testing | `create-cluster` | Creates everything you need |
-| CI/CD pipeline | `create-cluster` | Clean environment each time |
-| Production integration | `existing-cluster` | Doesn't affect existing workloads |
-| Development/Testing | Either | Depends on your preference |
-
-## Quick Start
-
-1. **Choose an example** based on your needs
-2. **Navigate to the example directory**:
-   ```bash
-   cd create-cluster  # or existing-cluster
-   ```
-3. **Follow the README** in that directory for detailed instructions
-
 ## Common Prerequisites
 
 All examples require:

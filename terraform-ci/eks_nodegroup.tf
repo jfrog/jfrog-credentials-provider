@@ -11,6 +11,8 @@ resource "aws_security_group_rule" "allow_management_from_my_ip" {
 }
 
 
+
+
 module "eks" {
     count = var.create_eks_cluster ? 1 : 0
 
@@ -27,6 +29,9 @@ module "eks" {
         aws-ebs-csi-driver = {
             most_recent = true
             service_account_role_arn = module.ebs_csi_irsa_role[0].iam_role_arn
+        }
+        vpc-cni = {
+            most_recent = true
         }
     }
 
@@ -69,6 +74,7 @@ module "daemonset_test_ng" {
 
   create_iam_role           = false
   iam_role_arn              = aws_iam_role.eks_node_role.arn
+  vpc_security_group_ids    = var.create_eks_cluster ? [module.eks[0].node_security_group_id] : []
 
     labels = {
         onlyForDaemonset = "true"

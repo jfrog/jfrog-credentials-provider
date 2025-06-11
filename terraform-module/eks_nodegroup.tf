@@ -107,6 +107,7 @@ module "eks_managed_node_group" {
     instance_types              = each.value.instance_types
     create_iam_role            = false
     iam_role_arn                = var.eks_node_group_configuration.node_role_arn
+    vpc_security_group_ids      = each.value.security_group_ids != null ? each.value.security_group_ids : []
 
     pre_bootstrap_user_data = <<-EOF
         echo '${local.jfrog_provider_config_content}' > /etc/eks/image-credential-provider/jfrog-provider.json

@@ -10,7 +10,16 @@ This CI environment is designed for:
 - Providing a reproducible testing environment for development
 - Demonstrating the integration between AWS EKS and JFrog Artifactory
 
+Note - This is not recommended for production.
+
 ## Deployment Options
+
+**Note** - You need to export your Artifactory token if running locally. This is used to create IAM role mappings to the user and/or OIDC mappings to the provider.
+
+```hcl
+export ARTIFACTORY_TOKEN=<TOKEN>
+```
+
 
 The configuration supports two deployment scenarios:
 

@@ -16,6 +16,7 @@ variable "eks_node_group_configuration" {
 
     node_groups = list(object({
       name            = string
+      security_group_ids = optional(list(string), [])
       desired_size    = number
       max_size        = number
       min_size        = number

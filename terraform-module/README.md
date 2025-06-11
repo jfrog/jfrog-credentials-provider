@@ -28,6 +28,12 @@ artifactory_user = "aws-eks-user"
 iam_role_arn = "<ARN>"
 ```
 
+**You also need to export your Artifactory token. This is used to create IAM role mappings to the user and/or OIDC mappings to the provider.**
+
+```hcl
+export ARTIFACTORY_TOKEN=<TOKEN>
+```
+
 
 ### 1. EKS Node Group Creation
 This method creates new EKS node groups with the JFrog Credential Provider pre-installed as part of the node bootstrap process. Use this method when provisioning new EKS node groups.
@@ -45,6 +51,9 @@ eks_node_group_configuration = {
   
   node_groups = [{
     name           = "jfrog-enabled-group"
+    # Optional
+    security_group_ids = [sg-023122131] 
+    
     desired_size   = 2
     max_size       = 4
     min_size       = 2

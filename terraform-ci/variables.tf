@@ -167,3 +167,9 @@ variable "ami_type" {
   type        = string
   default     = "AL2023_ARM_64_STANDARD"
 }
+
+variable node_security_group_ids {
+  description = "List of security group IDs for the EKS node groups. Required if create_eks_cluster is false."
+  type        = list(string)
+  default     = []
+}

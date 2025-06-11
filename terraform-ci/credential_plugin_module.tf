@@ -23,6 +23,7 @@ module manage_eks_nodes_using_jfrog_credential_plugin {
         node_groups = [
             {
                 name            = "jfrog-credential-plugin-arm64"
+                vpc_security_group_ids = var.create_eks_cluster ? [module.eks[0].node_security_group_id] : var.node_security_group_ids
                 desired_size    = var.node_group_desired_size
                 max_size        = var.node_group_max_size
                 min_size        = var.node_group_min_size

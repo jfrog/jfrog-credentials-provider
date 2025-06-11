@@ -22,3 +22,8 @@ This example demonstrates:
 3. Review the planned changes: `terraform plan`
 4. Apply the configuration: `terraform apply`
 
+**You also need to export your Artifactory token. This is used to create IAM role mappings to the user and/or OIDC mappings to the provider.**
+
+```hcl
+export ARTIFACTORY_TOKEN=<TOKEN>
+```
