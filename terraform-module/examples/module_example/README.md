@@ -21,4 +21,3 @@ This example demonstrates:
 2. Initialize Terraform: `terraform init`
 3. Review the planned changes: `terraform plan`
 4. Apply the configuration: `terraform apply`
-

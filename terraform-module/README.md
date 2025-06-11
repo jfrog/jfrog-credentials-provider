@@ -10,16 +10,16 @@ JFrog Credential Provider is a kubelet credential provider that enables Kubernet
 - Configures the JFrog Credential Provider for Kubernetes clusters on AWS
 - Supports `cognito_oidc` and `assume_role` authentication methods
 - Offers three flexible deployment methods:
-  1. EKS Node Group creation with built-in JFrog Credential Provider
-  2. DaemonSet installation for existing EKS clusters
-  3. AWS CLI command generation for custom instance provisioning
+    1. EKS Node Group creation with built-in JFrog Credential Provider
+    2. DaemonSet installation for existing EKS clusters
+    3. AWS CLI command generation for custom instance provisioning
 
 ## Deployment Methods
 
 Note - If you'd like to get right into running commands look at [Lazy Setup](#lazy-setup). But we recommend reading through all the possible configurations
 
 ### Required Configuration
-Irrespective of the deployment method you decide, these variables are required by default. 
+Irrespective of the deployment method you decide, these variables are required by default.
 
 ```hcl
 artifactory_url = "myart.jfrog.io"
@@ -92,9 +92,9 @@ kubeconfig_path = "~/.kube/config"
 - Creates a namespace for the JFrog Credential Provider resources
 - Deploys ConfigMaps containing provider configuration and bootstrap scripts
 - Launches a DaemonSet with privileged init containers to:
-  - Download the JFrog Credential Provider binary
-  - Configure the kubelet to use the credential provider
-  - Restart the kubelet service
+    - Download the JFrog Credential Provider binary
+    - Configure the kubelet to use the credential provider
+    - Restart the kubelet service
 - Uses a lightweight pause container to maintain the DaemonSet lifecycle
 
 ### 3. AWS CLI Command Generation
@@ -112,9 +112,9 @@ generate_aws_cli_command = true
 - Generates a JSON file with Launch Template data
 - Outputs an AWS CLI command that can be used to create a Launch Template
 - The command includes the user data script that will:
-  - Download the JFrog Credential Provider binary
-  - Configure the kubelet credential provider
-  - Restart the kubelet service
+    - Download the JFrog Credential Provider binary
+    - Configure the kubelet credential provider
+    - Restart the kubelet service
 
 ## Authentication Methods
 
@@ -185,11 +185,11 @@ module "jfrog_credential_provider" {
 The module includes several examples to help you get started:
 
 - **Configuration Examples**:
-  - `examples/terraform.tfvars.oidc` - Example with Cognito OIDC authentication
-  - `examples/terraform.tfvars.assume_role` - Example with AWS IAM Role authentication
+    - `examples/terraform.tfvars.oidc` - Example with Cognito OIDC authentication
+    - `examples/terraform.tfvars.assume_role` - Example with AWS IAM Role authentication
 
 - **Complete Module Example**:
-  - `examples/module_example/` - A complete implementation using the module with Assume Role authentication and EKS Node Group creation
+    - `examples/module_example/` - A complete implementation using the module with Assume Role authentication and EKS Node Group creation
 
 To use these examples:
 1. Clone the repository
@@ -202,20 +202,20 @@ To use these examples:
 Before using this module, ensure you have:
 
 1. **For EKS Node Group Method**:
-   - AWS credentials with permissions to create and manage EKS node groups
-   - An existing EKS cluster
+    - AWS credentials with permissions to create and manage EKS node groups
+    - An existing EKS cluster
 
 2. **For DaemonSet Method**:
-   - A running Kubernetes cluster
-   - `kubectl` access to the cluster (via kubeconfig)
+    - A running Kubernetes cluster
+    - `kubectl` access to the cluster (via kubeconfig)
 
 3. **For AWS CLI Command Method**:
-   - AWS credentials with permissions to create Launch Templates
-   - AWS CLI installed if you plan to execute the generated commands
+    - AWS credentials with permissions to create Launch Templates
+    - AWS CLI installed if you plan to execute the generated commands
 
 4. **Authentication Requirements**:
-   - For OIDC: A configured AWS Cognito User Pool with an appropriate resource server
-   - For Assume Role: An IAM role with appropriate permissions and trust relationships
+    - For OIDC: A configured AWS Cognito User Pool with an appropriate resource server
+    - For Assume Role: An IAM role with appropriate permissions and trust relationships
 
 ## Lazy Setup
 
@@ -226,7 +226,7 @@ If you'd want to avoid reading all of this and just want to go ahead and try it 
     cp terraform-module/examples/terraform.tfvars.lazy terraform-module/terraform.tfvars
   ```
 2. Update the values based on your Infrastructure
-2. `terraform init` 
+2. `terraform init`
 3. `terraform apply`
 
 ## Important Notes
@@ -238,7 +238,7 @@ If you'd want to avoid reading all of this and just want to go ahead and try it 
     https://example.jfrog.io/access/api/v1/aws/iam_role
   
   ```
-  If it isn't, Run - 
+  If it isn't, Run -
   ```
   curl -XPUT -H "Content-type: application/json" -H "Authorization: Bearer <TOKEN>" \
     https://example.jfrog.io/access/api/v1/aws/iam_role \
@@ -254,7 +254,7 @@ If you'd want to avoid reading all of this and just want to go ahead and try it 
   https://<ARTIFACTORY_URL>/access/api/v1/oidc/<PROVIDER_NAME>/identity_mappings
 
   ```
-  If these return empty. Run the following commands - 
+  If these return empty. Run the following commands -
   ```
   curl  -XPOST "https://<ARTIFACTORY_URL>/access/api/v1/oidc" \
       -H "Content-Type: application/json" \

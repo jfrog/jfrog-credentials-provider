@@ -71,7 +71,7 @@ cluster_public_access_cidrs = ["YOUR_IP/32"]
 
 # Required when create_eks_cluster = false  
 self_managed_eks_cluster = {
-  name = "your-existing-cluster-name"
+   name = "your-existing-cluster-name"
 }
 
 # Common configuration for both scenarios
@@ -122,7 +122,7 @@ These examples provide a quick way to get started without manually configuring a
 
 If you'd want to avoid reading all of this and just want to go ahead and try it then:
 1. Copy `build/terraform.tfvars` to `terraform-ci`
-2. `terraform init` 
+2. `terraform init`
 3. `terraform plan`
 
 This creates two node groups in an existing cluster. One installs Jfrog Credential Provider Plugin directly through user data.

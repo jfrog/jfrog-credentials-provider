@@ -30,7 +30,7 @@ aws_cognito_user_pool_secret_name = "jfrog-cognito-credentials"
 #   cluster_name              = "my-eks-cluster"
 #   cluster_service_ipv4_cidr = "172.20.0.0/16"
 #   subnet_ids                = ["subnet-abc123", "subnet-def456"]
-#   
+#
 #   node_groups = [{
 #     name           = "jfrog-enabled-ng"
 #     desired_size   = 2
