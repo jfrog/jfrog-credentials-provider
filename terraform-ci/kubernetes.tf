@@ -1,23 +1,45 @@
 # Configure the Kubernetes provider
 provider "kubernetes" {
-  host                   = data.aws_eks_cluster.self_managed_eks_cluster_data.endpoint
-  cluster_ca_certificate = base64decode(data.aws_eks_cluster.self_managed_eks_cluster_data.certificate_authority.0.data)
-  token                  = data.aws_eks_cluster_auth.self_managed_eks_cluster_auth.token
+  host                   = data.aws_eks_cluster.eks_cluster_data.endpoint
+  cluster_ca_certificate = base64decode(data.aws_eks_cluster.eks_cluster_data.certificate_authority.0.data)
+  token                  = data.aws_eks_cluster_auth.eks_cluster_auth.token
 }
 
-resource "kubernetes_namespace" "jfrog_namespace" {
 
+resource "kubernetes_pod_v1" "busybox_pod_ds" {
   metadata {
-    annotations = {
-      name = var.jfrog_namespace
-    }
-
+    name = "busybox-pod-ds-v1"
     labels = {
-      app = "jfrog-credential-provider"
+      app = "busybox"
     }
-
-    name = var.jfrog_namespace
+    namespace = var.jfrog_namespace
   }
+
+  spec {
+    toleration {
+        key    = "forDaemonset"
+        operator = "Equal"
+        value  = "true"
+        effect = "NoSchedule"
+    }
+    node_selector = {
+      "onlyForDaemonset": "true"
+    }
+    container {
+      name  = "busybox-container"
+      # TODO Make this dynamic
+      image = var.busybox_image_ds
+      command = [
+        "/bin/sh",
+        "-c",
+        "while true; do sleep 3600; done"
+      ]
+    }
+  }
+
+  depends_on = [
+    module.create_daemonset_with_plugin_enabled
+  ]
 }
 
 resource "kubernetes_pod_v1" "busybox_pod" {
@@ -38,7 +60,7 @@ resource "kubernetes_pod_v1" "busybox_pod" {
     }
     node_selector = {
       "createdBy": "kubelet-plugin-test-ci",
-      "nodeType": "cogito-oidc"
+      "nodeType": "cognito-oidc"
     }
     container {
       name  = "busybox-container"
@@ -52,5 +74,5 @@ resource "kubernetes_pod_v1" "busybox_pod" {
     }
   }
 
-  depends_on = [kubernetes_namespace.jfrog_namespace]
+  depends_on = [module.create_daemonset_with_plugin_enabled]
 }

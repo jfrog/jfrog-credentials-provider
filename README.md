@@ -1,76 +1,68 @@
-<<<<<<< HEAD
-# Jfrog Credential Provider
-=======
-# JFrog Credential Provider Sources
-This directory has the sources for the JFrog Credential Provider.
+# JFrog Kubelet Credential Provider
 
-## Building the JFrog Credential Provider
-To build the JFrog Credential Provider, run the following command
-```shell
-./build-binary.sh
+A Kubernetes kubelet credential provider that enables seamless authentication with JFrog Artifactory for container image pulls in Amazon EKS, eliminating the need for manual image pull secret management.
+
+## Overview
+
+The JFrog Kubelet Credential Provider leverages the native Kubernetes Kubelet Credential Provider feature to dynamically retrieve credentials for pulling container images from JFrog Artifactory. This approach provides several key benefits:
+
+- **No Image Pull Secrets**: Eliminates the need to create and manage Kubernetes secrets
+- **Enhanced Security**: Credentials are retrieved dynamically rather than stored in etcd
+- **Simplified Operations**: Reduces operational overhead for credential rotation and management
+- **Native Integration**: Uses built-in Kubernetes capabilities for credential management
+
+## How It Works
+
+1. A pod is created with an image stored in JFrog Artifactory
+2. Kubelet identifies the image URL matches the configured pattern for the JFrog credential provider
+3. Kubelet invokes the JFrog credential provider binary
+4. The provider authenticates with AWS (using IAM roles or OIDC) and exchanges credentials with Artifactory
+5. Valid registry credentials are returned to kubelet for the image pull
+
+## Quick Start
+
+The easiest way to deploy the JFrog Credential Provider is using our Terraform module:
+
+```bash
+cd terraform-module
+# Copy and customize one of the example configurations
+cp examples/terraform.tfvars.assume_role terraform.tfvars
+# Edit terraform.tfvars for your environment
+terraform init
+terraform plan
+terraform apply
 ```
 
-The resulting binaries will be in the `bin/` directory.
+## Deployment Options
+
+The JFrog Credential Provider supports three deployment methods:
+
+1. **EKS Node Groups** - Creates new node groups with the provider pre-installed
+2. **DaemonSet** - Installs the provider on existing EKS clusters
+3. **Launch Template Generation** - Generates AWS CLI commands for custom deployments
+
+See the [terraform-module](./terraform-module) directory for detailed deployment instructions and examples.
+
+## Authentication Methods
+
+- **AWS IAM Role Assumption**: Uses EC2 instance IAM roles for authentication
+- **AWS Cognito OIDC**: Uses OIDC tokens from AWS Cognito for authentication
+
+## Requirements
+
+- Amazon EKS cluster
+- JFrog Artifactory instance
+- IAM role mapped to a JFrog Artifactory user
+- OIDC provider and identity mappings 
+.. more details can be found in [terraform-module](./terraform-module)
 
 
-## PLUGIN REQUIREMENTS
-To run the plugin 2 ENVs must exist:
-`artifactory_url` pointing to the customer saas jfrog platform host (host name only excluding  https:// or training / signs)
-example: my-jfrog-platform.jfrog.io
-`aws_role_name` the name of the aws iam arn role that is set for the ec2 instances on which eks kubelet is running 
-To provide the envs to kubelet, update them inside jfrog_provider.json which is being used by the project terraform
+## Logging and Debugging
 
-To check an ec2 role name, inside aws portal:
-```
-In the AWS Management Console, go to the EC2 Dashboard.
-Select the instance you want to check
-Search for IAM Role.```
-
-THe IAM Role requires this permissions:
-```
-"Action": [
-              "sts:GetCallerIdentity"
-            ],
-```
-Optionally with this resource restriction:
-```
-"Resource": [
-                "arn:aws:iam::<your account>:role/the iam role name"
-            ]
-```
-
-## USED TOOLS / APIs
-metadata local services:
-get EC2 aws token
-
-`curl -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600"`
-
-get temporary credentials for the EC2 role (uses the EC2 token)
-
-`curl -o test -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/iam/security-credentials/<role name>```
-temporary credentials response is:
-`
-  {
-    "Code" : "Success",
-    "LastUpdated" : "2024-12-08T15:38:52Z",
-    "Type" : "AWS-HMAC",
-    "AccessKeyId" : "xxx",
-    "SecretAccessKey" : "xxx",
-    "Token" : "xxx",
-    "Expiration" : "2024-12-08T22:13:22Z"
-  }
+Plugin logs are available at:
+```bash
+tail -f /var/log/jfrog-credential-provider.log
 ```
 
-## LOGGING
-plugin logs are written into: 
-```tail -f /var/log/jfrog-credential-provider.log```
+For detailed debugging instructions, see the [ref.doc](./to_be_entered_later) file.
 
-## JFROG SETTINGS 
-For aws <> JFrog token exchange to work, the ec2 iam role needs to be mapped to JFrog artifactory user  
-Tagging a jfrog user user with aws role:
-`curl -XPUT -H "Content-type: application/json"  -H "Authorization: Bearer <TOKEN>"  https://<JFrog saas platform name>.jfrog.io/access/api/v1/aws/iam_role -d '{"username":"<jfrog user>", "iam_role": "<role arn>"}' -vvv`
-
-verify JFrog user is tagged:
-`curl -H "Content-type: application/json"  -H "Authorization: Bearer <TOKEN>"  https://<JFrog saas platform name>.jfrog.io/access/api/v1/aws/iam_role/<jfrog user> -vvv`
-
->>>>>>> c7906b7 (Initial Commit)

@@ -56,7 +56,7 @@ check "cluster_name_conditional_requirement" {
 variable "cluster_version" {
   description = "Kubernetes version for the EKS cluster."
   type        = string
-  default     = "1.31"
+  default     = "1.32"
 }
 
 
@@ -90,36 +90,30 @@ variable "jfrog_oidc_provider_name" {
   default = "jfrog-aws-oidc-provider"
 }
 
-variable "artifactory_oidc_identity_mapping_username" {
-  # default     = "carmith" # Default removed
-  description = "The username in Artifactory to map the OIDC identity to. This user must exist in Artifactory."
-  type        = string
-}
-
 variable "jfrog_namespace" {
   default = "jfrog"
 }
 
 # Node Group configurations
-variable "oidc_node_group_instance_types" {
+variable "node_group_instance_types" {
   description = "Instance types for the OIDC-enabled EKS managed node group."
   type        = list(string)
   default     = ["t4g.small"]
 }
 
-variable "oidc_node_group_min_size" {
+variable "node_group_min_size" {
   description = "Minimum number of nodes for the OIDC node group."
   type        = number
   default     = 1
 }
 
-variable "oidc_node_group_max_size" {
+variable "node_group_max_size" {
   description = "Maximum number of nodes for the OIDC node group."
   type        = number
   default     = 1
 }
 
-variable "oidc_node_group_desired_size" {
+variable "node_group_desired_size" {
   description = "Desired number of nodes for the OIDC node group."
   type        = number
   default     = 1
