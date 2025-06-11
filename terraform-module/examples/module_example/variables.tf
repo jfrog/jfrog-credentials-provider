@@ -62,7 +62,7 @@ variable "node_groups" {
       desired_size   = 2
       max_size       = 4
       min_size       = 1
-      ami_type       = "AL2_x86_64"
+      ami_type       = "AL2023_ARM_64_STANDARD"
       instance_types = ["t3.medium"]
       labels         = {
         "jfrog-credential-provider" = "enabled"

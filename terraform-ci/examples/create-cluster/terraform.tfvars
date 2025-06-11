@@ -33,7 +33,7 @@ oidc_node_group_desired_size = 2
 oidc_node_group_max_size = 4
 oidc_node_group_min_size = 1
 oidc_node_group_instance_types = ["t3.medium"]
-ami_type = "AL2_x86_64"
+ami_type = "AL2023_ARM_64_STANDARD"
 
 # OIDC Configuration (if using OIDC authentication)
 jfrog_oidc_provider_name = "jfrog-aws-oidc-provider"

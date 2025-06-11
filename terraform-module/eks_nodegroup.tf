@@ -115,7 +115,19 @@ module "eks_managed_node_group" {
         export ARTIFACTORY_URL="${var.artifactory_url}"
         ${file("${path.module}/jfrog/bootstrap.sh")}
         EOF
+        
+    cloudinit_pre_nodeadm  = [
+    {
+        content = <<-EOF
+        #!bin/bash
+        echo '${local.jfrog_provider_config_content}' > /etc/eks/image-credential-provider/jfrog-provider.json
 
+        export JFROG_CREDENTIAL_PROVIDER_BINARY_URL="${var.jfrog_credential_provider_binary_url}"
+        export ARTIFACTORY_URL="${var.artifactory_url}"
+        ${file("${path.module}/jfrog/bootstrap.sh")}
+        EOF
+    }
+    ]
     labels = each.value.labels != null ? each.value.labels : {}
     taints = each.value.taints != null ? each.value.taints : []
 }

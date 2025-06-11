@@ -10,7 +10,7 @@
 # node_group_max_size = 4
 # node_group_min_size = 1
 # node_group_instance_types = ["t3.medium"]
-# ami_type = "AL2_x86_64"
+# ami_type = "AL2023_ARM_64_STANDARD"
 
 
 jfrog_namespace = "jfrog"

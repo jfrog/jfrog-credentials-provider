@@ -165,5 +165,5 @@ variable "busybox_image_ds" {
 variable "ami_type" {
   description = "AMI type for the EKS node group."
   type        = string
-  default     = "AL2_ARM_64"
+  default     = "AL2023_ARM_64_STANDARD"
 }

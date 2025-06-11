@@ -34,7 +34,7 @@ module "eks" {
     subnet_ids = module.vpc[0].private_subnets
 
     eks_managed_node_group_defaults = {
-        ami_type = "AL2_ARM_64"
+        ami_type = "AL2023_ARM_64_STANDARD"
         create_iam_role          = false
         iam_role_arn             = aws_iam_role.eks_node_role.arn
     }
