@@ -21,7 +21,7 @@
       "matchImages": [
         "*.jfrog.io"
       ],
-      "defaultCacheDuration": "5m",
+      "defaultCacheDuration": "5h",
       "apiVersion": "credentialprovider.kubelet.k8s.io/v1",
       "env": [
         {

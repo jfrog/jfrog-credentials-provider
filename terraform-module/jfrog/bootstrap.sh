@@ -2,14 +2,11 @@
 export IMAGE_CREDENTIAL_PROVIDER_DIR=/etc/eks/image-credential-provider
 
 ARCH=$(uname -m)
-ARCH_SUFFIX=""
+ARCH_SUFFIX="amd64"
 if [ "$ARCH" = "x86_64" ]; then
     ARCH_SUFFIX="amd64"
 elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
     ARCH_SUFFIX="arm64"
-else
-    echo "Warning: Unrecognized architecture $ARCH. Defaulting to amd64 binary."
-    ARCH_SUFFIX="amd64"
 fi
 
 export JFROG_CREDENTIAL_PROVIDER_BINARY_URL="${JFROG_CREDENTIAL_PROVIDER_BINARY_URL}-${ARCH_SUFFIX}"

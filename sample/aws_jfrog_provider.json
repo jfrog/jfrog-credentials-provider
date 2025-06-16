@@ -3,6 +3,8 @@
   "matchImages": [
     "*.jfrog.io"
   ],
+  // Set defaultCacheDuration lower than secret_ttl_seconds (2h/7200s < 7800s)
+  // This ensures credentials remain valid for the entire cache duration
   "defaultCacheDuration": "2h",
   "apiVersion": "credentialprovider.kubelet.k8s.io/v1",
   "env": [   
@@ -19,12 +21,14 @@
       "name": "aws_role_name",
       "value": "node-group-1-eks-node-group-20241208081825853100000001"      
     },
-    //relevant only for oidc flow
+    //relevant only for oidc flowprovider.go
     {
       "name": "secret_name",
       "value": "JFrog-OIDC-integration-secret"      
     },
     //relevant only for assume role flow
+    // Set secret_ttl_seconds higher than defaultCacheDuration (7800s > 2h/7200s)
+    // This prevents tokens from expiring while still being used from cache
     {
       "name": "secret_ttl_seconds",
       "value": "7800"      

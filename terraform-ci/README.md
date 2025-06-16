@@ -122,12 +122,12 @@ terraform destroy
 
 The `examples/` directory contains ready-to-use configurations for both deployment scenarios:
 
-- **`terraform.tfvars.create_cluster`**: Complete example for creating a new EKS cluster
-- **`terraform.tfvars.existing_cluster`**: Example for using an existing EKS cluster
+- **`terraform.create_cluster.tfvars`**: Complete example for creating a new EKS cluster
+- **`terraform.existing_cluster.tfvars`**: Example for using an existing EKS cluster
 
 These examples provide a quick way to get started without manually configuring all the variables.
 
-## Lazy Setup
+## Quick Setup
 
 If you'd want to avoid reading all of this and just want to go ahead and try it then:
 1. Copy `build/terraform.tfvars` to `terraform-ci`

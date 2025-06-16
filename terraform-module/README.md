@@ -16,7 +16,7 @@ JFrog Credential Provider is a kubelet credential provider that enables Kubernet
 
 ## Deployment Methods
 
-Note - If you'd like to get right into running commands look at [Lazy Setup](#lazy-setup). But we recommend reading through all the possible configurations
+Note - If you'd like to get right into running commands look at [Quick Setup](#quick-setup). But we recommend reading through all the possible configurations
 
 ### Required Configuration
 Irrespective of the deployment method you decide, these variables are required by default. 
@@ -53,7 +53,7 @@ eks_node_group_configuration = {
     name           = "jfrog-enabled-group"
     # Optional
     security_group_ids = [sg-023122131] 
-    
+
     desired_size   = 2
     max_size       = 4
     min_size       = 2
@@ -194,8 +194,8 @@ module "jfrog_credential_provider" {
 The module includes several examples to help you get started:
 
 - **Configuration Examples**:
-  - `examples/terraform.tfvars.oidc` - Example with Cognito OIDC authentication
-  - `examples/terraform.tfvars.assume_role` - Example with AWS IAM Role authentication
+  - `examples/terraform.oidc.tfvars` - Example with Cognito OIDC authentication
+  - `examples/terraform.assume_role.tfvars` - Example with AWS IAM Role authentication
 
 - **Complete Module Example**:
   - `examples/module_example/` - A complete implementation using the module with Assume Role authentication and EKS Node Group creation
@@ -226,13 +226,13 @@ Before using this module, ensure you have:
    - For OIDC: A configured AWS Cognito User Pool with an appropriate resource server
    - For Assume Role: An IAM role with appropriate permissions and trust relationships
 
-## Lazy Setup
+## Quick Setup
 
 If you'd want to avoid reading all of this and just want to go ahead and try it then:
 
-1. Copy `build/terraform.tfvars.lazy` to `terraform-ci`
+1. Copy `build/terraform.quick.tfvars` to `terraform-ci`
   ```
-    cp terraform-module/examples/terraform.tfvars.lazy terraform-module/terraform.tfvars
+    cp terraform-module/examples/terraform.quick.tfvars terraform-module/terraform.tfvars
   ```
 2. Update the values based on your Infrastructure
 2. `terraform init` 

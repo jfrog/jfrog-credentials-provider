@@ -26,7 +26,7 @@ The easiest way to deploy the JFrog Credential Provider is using our Terraform m
 ```bash
 cd terraform-module
 # Copy and customize one of the example configurations
-cp examples/terraform.tfvars.assume_role terraform.tfvars
+cp examples/terraform.assume_role.tfvars terraform.tfvars
 # Edit terraform.tfvars for your environment
 terraform init
 terraform plan
@@ -48,18 +48,21 @@ See the [terraform-module](./terraform-module) directory for detailed deployment
 - **AWS IAM Role Assumption**: Uses EC2 instance IAM roles for authentication
 - **AWS Cognito OIDC**: Uses OIDC tokens from AWS Cognito for authentication
 
+**Note**: You must select either IAM Role Assumption OR Cognito OIDC as your authentication method - they cannot be used simultaneously in the same deployment.
+
 ## Requirements
 
 - Amazon EKS cluster
 - JFrog Artifactory instance
-- IAM role mapped to a JFrog Artifactory user
-- OIDC provider and identity mappings 
+- Based on your chosen authentication method:
+  - **For IAM Role Assumption**: IAM role mapped to a JFrog Artifactory user
+  - **For Cognito OIDC**: OIDC provider and identity mappings
 .. more details can be found in [terraform-module](./terraform-module)
 
 
 ## Logging and Debugging
 
-Plugin logs are available at:
+Plugin logs are available in your kubelet VM at:
 ```bash
 tail -f /var/log/jfrog-credential-provider.log
 ```

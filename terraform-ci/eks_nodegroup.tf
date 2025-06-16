@@ -74,7 +74,7 @@ module "daemonset_test_ng" {
 
   create_iam_role           = false
   iam_role_arn              = aws_iam_role.eks_node_role.arn
-  vpc_security_group_ids    = var.create_eks_cluster ? [module.eks[0].node_security_group_id] : []
+  vpc_security_group_ids    = var.create_eks_cluster ? [module.eks[0].node_security_group_id] : var.node_security_group_ids
 
     labels = {
         onlyForDaemonset = "true"
