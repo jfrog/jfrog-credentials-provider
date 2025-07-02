@@ -53,5 +53,11 @@
       "name": "resource_server_name",
       "value": "resource-server-for-jfrog-oidc"      
     }
+
+    // To disable automatic updates of the provider binary, default is false
+    {
+      "name": "disable_provider_autoupdate",
+      "value": "true"
+    }
   ]
 }

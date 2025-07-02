@@ -31,6 +31,10 @@
         {
           "name": "aws_role_name",
           "value": "node-group-1-eks-node-group-20241208081825853100000001"
+        },
+        {
+          "name": "disable_provider_autoupdate",
+          "value": "false"
         }
       ]
     }

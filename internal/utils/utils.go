@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"gopkg.in/yaml.v3"
+	"strconv"
 	"jfrog-credential-provider/internal/logger"
 	"os"
 )
@@ -75,6 +76,14 @@ func GetEnvs(logs *logger.Logger, key, fallback string) string {
 		logs.Debug("Found environment variable:" + key + "=" + value)
 		return value
 	}
+	return fallback
+}
+
+func GetEnvsBool(logs *logger.Logger, key string, fallback bool) bool {
+	valueString := GetEnvs(logs, key, "")
+   if value, err := strconv.ParseBool(valueString); err == nil {
+		return value
+    }
 	return fallback
 }
 

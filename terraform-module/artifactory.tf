@@ -68,7 +68,7 @@ resource "null_resource" "configure_artifactory_oidc" {
 
       if [ "${self.triggers.authentication_method}" = "assume_role" ]; then
       echo "Delete existing AWS IAM role binding (if any)..."
-      curl  -X DELETE "https://${self.triggers.artifactory_url}/access/api/v1/aws/iam_role" \
+      curl  -X DELETE "https://${self.triggers.artifactory_url}/access/api/v1/aws/iam_role/${self.triggers.artifactory_user}" \
           -H "Authorization: Bearer $ARTIFACTORY_TOKEN" || echo "AWS IAM role binding not found or deletion failed, continuing..."
 
       echo "Configuring Artifactory AWS IAM role binding..."
@@ -98,7 +98,7 @@ resource "null_resource" "configure_artifactory_oidc" {
           -H "Authorization: Bearer $ARTIFACTORY_TOKEN" || echo "OIDC provider ${self.triggers.jfrog_oidc_provider_name} not found or deletion failed, continuing..."
 
       echo "Deleting existing AWS IAM role binding (if any)..."
-      curl  -X DELETE "https://${self.triggers.artifactory_url}/access/api/v1/aws/iam_role" \
+      curl  -X DELETE "https://${self.triggers.artifactory_url}/access/api/v1/aws/iam_role/${self.triggers.artifactory_user}" \
           -H "Authorization: Bearer $ARTIFACTORY_TOKEN" || echo "AWS IAM role binding not found or deletion failed"
     EOT
     interpreter = ["bash", "-c"]

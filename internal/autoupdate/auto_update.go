@@ -9,16 +9,14 @@ import (
 	"syscall"
 	"net/http"
 	"os"
-	"flag"
 	"jfrog-credential-provider/internal/utils"
 )
 
 // AutoUpdate checks for a new version, downloads, verifies, validates, and replaces the current binary if an update is available.
 func AutoUpdate(logs *logger.Logger, client *http.Client, ctx context.Context, Version string) {
-	// check for the --disable-auto-update flag
+	// check for the environment variable to disable auto-update
 	var autoUpdateDisabled bool
-	flag.BoolVar(&autoUpdateDisabled, "disable-auto-update", false, "Disable auto-update functionality")
-	flag.Parse()
+	autoUpdateDisabled = utils.GetEnvsBool(logs, "disable_provider_autoupdate", false)
 	if autoUpdateDisabled {
 		logs.Info("Auto-update functionality is disabled. Skipping auto-update process.")
 		runtime.Goexit()

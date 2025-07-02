@@ -157,7 +157,7 @@ func handleAWSAuth(svc *service.Service, ctx context.Context, logs *logger.Logge
 func generateAndOutputResponse(logs *logger.Logger, request utils.CredentialProviderRequest, rtUsername, rtToken string) {
 	response := utils.CredentialProviderResponse{
 		ApiVersion:   "credentialprovider.kubelet.k8s.io/v1",
-		Kind:         "utils.CredentialProviderResponse",
+		Kind:         "CredentialProviderResponse",
 		CacheKeyType: "Registry",
 		Auth: utils.AuthSection{
 			Registry: map[string]utils.AuthCredential{
