@@ -30,6 +30,7 @@ pipelines:
                 - ""
               description: "Allow custom tag name for the release"
               allowCustom: true
+            GITHUB_REPO_URL: "https://github.com/jfrog/jfrog-credentials-provider"
           inputResources:
             - name: kubelet_credentials_provider_github
               trigger: true
@@ -54,6 +55,6 @@ pipelines:
           onExecute:
             - echo "Pushing tag ${GITHUB_RELEASE_TAG_NAME} with release ${res_kubelet_credentials_provider_github_releaseName}"
             - mkdir -p "release-${GITHUB_RELEASE_TAG_NAME}" && cd "release-${GITHUB_RELEASE_TAG_NAME}"
-            - /usr/local/bin/gh release download "${GITHUB_RELEASE_TAG_NAME}" --repo "${res_kubelet_credentials_provider_github_gitRepoRepositoryUrl}" --clobber
+            - /usr/local/bin/gh release download "${GITHUB_RELEASE_TAG_NAME}" --repo "${GITHUB_REPO_URL}" --clobber
             - jf rt u * --url "${int_entplus_deployer_url}" --user "${int_entplus_deployer_user}" --password "${int_entplus_deployer_password}" --target "inst-jfrog-kubelet-credentials-provider/${GITHUB_RELEASE_TAG_NAME}/"
             - echo "Finished pushing artifacts to entplus"
