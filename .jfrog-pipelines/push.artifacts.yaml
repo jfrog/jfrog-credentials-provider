@@ -1,5 +1,5 @@
 resources:
-  - name: jfrog_kubelet_credentials_provider_github
+  - name: kubelet_credentials_provider_github
     type: GitRepo
     configuration:
       gitProvider: credentials_provider_github
@@ -25,14 +25,14 @@ pipelines:
             # Add GitHub token for API access
             GITHUB_TOKEN: $int_credentials_provider_github_token
           inputResources:
-            - name: jfrog_kubelet_credentials_provider_github
+            - name: kubelet_credentials_provider_github
               trigger: true
         execution:
           onStart:
-            - echo "Based out of release ${res_jfrog_kubelet_credentials_provider_github_isRelease}"
+            - echo "Based out of release ${res_kubelet_credentials_provider_github_isRelease}"
             - echo "Downloading the release artifacts from GitHub"
-            - echo "Tag name being res_jfrog_kubelet_credentials_provider_github_gitTagName"
-            - echo "name ${res_jfrog_kubelet_credentials_provider_github_releaseName}"
-            - echo "Description ${res_jfrog_kubelet_credentials_provider_github_releaseDescription}"
-            - echo "Tag ${res_jfrog_kubelet_credentials_provider_github_releaseTag}"
-            - echo "Assets ${res_jfrog_kubelet_credentials_provider_github_releaseAssets}"
+            - echo "Tag name being res_kubelet_credentials_provider_github_gitTagName"
+            - echo "name ${res_kubelet_credentials_provider_github_releaseName}"
+            - echo "Description ${res_kubelet_credentials_provider_github_releaseDescription}"
+            - echo "Tag ${res_kubelet_credentials_provider_github_releaseTag}"
+            - echo "Assets ${res_kubelet_credentials_provider_github_releaseAssets}"
