@@ -30,9 +30,21 @@ pipelines:
         execution:
           onStart:
             - echo "Based out of release ${res_kubelet_credentials_provider_github_isRelease}"
-            - echo "Downloading the release artifacts from GitHub"
-            - brew install gh
+            - echo "Installing Github CLI"
+            - ARCH=$(uname -m)
+              ARCH_SUFFIX="amd64"
+              if [ "$ARCH" = "x86_64" ]; then
+                  ARCH_SUFFIX="amd64"
+              elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+                  ARCH_SUFFIX="arm64"
+              fi
+            - curl -L "https://github.com/cli/cli/releases/download/v2.74.2/gh_2.74.2_linux_$ARCH_SUFFIX.tar.gz" | tar xz
+            - sudo mv gh_2.74.2_linux_arm64/bin/gh /usr/local/bin/gh
+            - sudo chmod +x /usr/local/bin/gh
+            - echo "Github CLI installed"
             - gh version
+          onExecute:
+            - gh release download "${res_kubelet_credentials_provider_github_gitTagName}" --repo "${res_kubelet_credentials_provider_github_gitRepo}" --clobber
             - echo "Tag name being ${res_kubelet_credentials_provider_github_gitTagName}"
             - echo "name ${res_kubelet_credentials_provider_github_releaseName}"
             - echo "Description ${res_kubelet_credentials_provider_github_releaseDescription}"
