@@ -40,7 +40,7 @@ pipelines:
                   ARCH_SUFFIX="arm64"
               fi
             - curl -L "https://github.com/cli/cli/releases/download/v2.74.2/gh_2.74.2_linux_$ARCH_SUFFIX.tar.gz" | tar xz
-            - sudo mv gh_2.74.2_linux_arm64/bin/gh /usr/local/bin/gh
+            - sudo mv "gh_2.74.2_linux_$ARCH_SUFFIX.tar.gz" /usr/local/bin/gh
             - sudo chmod +x /usr/local/bin/gh
             - echo "Github CLI installed"
             - gh version
