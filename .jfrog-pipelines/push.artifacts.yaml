@@ -31,7 +31,9 @@ pipelines:
           onStart:
             - echo "Based out of release ${res_kubelet_credentials_provider_github_isRelease}"
             - echo "Downloading the release artifacts from GitHub"
-            - echo "Tag name being res_kubelet_credentials_provider_github_gitTagName"
+            - brew install gh
+            - gh version
+            - echo "Tag name being ${res_kubelet_credentials_provider_github_gitTagName}"
             - echo "name ${res_kubelet_credentials_provider_github_releaseName}"
             - echo "Description ${res_kubelet_credentials_provider_github_releaseDescription}"
             - echo "Tag ${res_kubelet_credentials_provider_github_releaseTag}"
