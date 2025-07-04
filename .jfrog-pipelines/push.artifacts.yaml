@@ -44,9 +44,9 @@ pipelines:
             - sudo mv "gh_2.74.2_linux_$ARCH_SUFFIX" /usr/local/bin/gh
             - sudo chmod +x /usr/local/bin/gh
             - echo "Github CLI installed"
-            - gh version
+            - /usr/local/bin/gh version
           onExecute:
-            - gh release download "${res_kubelet_credentials_provider_github_gitTagName}" --repo "${res_kubelet_credentials_provider_github_gitRepo}" --clobber
+            - /usr/local/bin/gh release download "${res_kubelet_credentials_provider_github_gitTagName}" --repo "${res_kubelet_credentials_provider_github_gitRepo}" --clobber
             - echo "Tag name being ${res_kubelet_credentials_provider_github_gitTagName}"
             - echo "name ${res_kubelet_credentials_provider_github_releaseName}"
             - echo "Description ${res_kubelet_credentials_provider_github_releaseDescription}"
