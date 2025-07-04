@@ -24,6 +24,12 @@ pipelines:
             USE_LOCAL_JFROG_CLI: 'true'
             # Add GitHub token for API access
             GITHUB_TOKEN: $int_credentials_provider_github_token
+            GITHUB_RELEASE_TAG_NAME:
+              default: ${res_kubelet_credentials_provider_github_gitTagName}
+              values:
+                - ""
+              description: "Allow custom tag name for the release"
+              allowCustom: true
           inputResources:
             - name: kubelet_credentials_provider_github
               trigger: true
@@ -46,9 +52,8 @@ pipelines:
             - echo "Github CLI installed"
             - /usr/local/bin/gh version
           onExecute:
-            - /usr/local/bin/gh release download "${res_kubelet_credentials_provider_github_gitTagName}" --repo "${res_kubelet_credentials_provider_github_gitRepo}" --clobber
-            - echo "Tag name being ${res_kubelet_credentials_provider_github_gitTagName}"
-            - echo "name ${res_kubelet_credentials_provider_github_releaseName}"
-            - echo "Description ${res_kubelet_credentials_provider_github_releaseDescription}"
-            - echo "Tag ${res_kubelet_credentials_provider_github_releaseTag}"
-            - echo "Assets ${res_kubelet_credentials_provider_github_releaseAssets}"
+            - echo "Pushing tag ${GITHUB_RELEASE_TAG_NAME} with release ${res_kubelet_credentials_provider_github_releaseName}"
+            - mkdir -p "release-${GITHUB_RELEASE_TAG_NAME}" && cd "release-${GITHUB_RELEASE_TAG_NAME}"
+            - /usr/local/bin/gh release download "${GITHUB_RELEASE_TAG_NAME}" --repo "${res_kubelet_credentials_provider_github_gitRepoRepositoryUrl}" --clobber
+            - jf rt u * --url "${int_entplus_deployer_url}" --user "${int_entplus_deployer_user}" --password "${int_entplus_deployer_password}" --target "inst-jfrog-kubelet-credentials-provider/${GITHUB_RELEASE_TAG_NAME}/"
+            - echo "Finished pushing artifacts to entplus"
