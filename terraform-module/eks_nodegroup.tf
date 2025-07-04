@@ -49,7 +49,7 @@ resource "local_file" "jfrog_provider_oidc" {
         }
 
         EOT
-    filename = "${path.module}/jfrog/jfrog_provider_generated.json"
+    filename = "${path.module}/jfrog/jfrog-provider.json"
 }
 
 resource "local_file" "jfrog_provider_assume_role"  {
@@ -79,7 +79,7 @@ resource "local_file" "jfrog_provider_assume_role"  {
     } 
 
     EOT
-    filename = "${path.module}/jfrog/jfrog_provider_generated.json"
+    filename = "${path.module}/jfrog/jfrog-provider.json"
 }
 
 locals {

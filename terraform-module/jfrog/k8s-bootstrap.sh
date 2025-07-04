@@ -49,7 +49,7 @@ else
     cat ${IMAGE_CREDENTIAL_PROVIDER_CONFIG}
 fi
 
-log "Done updating the kubelet credential-provider-config.json"
+log "Done updating the kubelet config.json"
 
 
 log "See kubelet service status"
