@@ -40,7 +40,7 @@ pipelines:
               input:
                 version: "2.72.2"
             - jf --version | echo "True"
-            - jfrog --version | echo "True"
+            - jfrog --version
             - echo "Based out of release ${res_kubelet_credentials_provider_github_isRelease}"
             - echo "Installing Github CLI"
             - |
@@ -62,5 +62,5 @@ pipelines:
             - /usr/local/bin/gh release download "${GITHUB_RELEASE_TAG_NAME}" --repo "${GITHUB_REPO_URL}" --clobber
             - echo "Strip V if it exists"
             - ENTPLUS_REPOSITORY_VERSION=$(echo "${GITHUB_RELEASE_TAG_NAME}" | sed 's/^v//')
-            - jf rt u * --url "${int_entplus_deployer_url}" --user "${int_entplus_deployer_user}" --password "${int_entplus_deployer_password}" --target "inst-jfrog-kubelet-credentials-provider/${ENTPLUS_REPOSITORY_VERSION}/"
+            - jfrog rt u * --url "${int_entplus_deployer_url}" --user "${int_entplus_deployer_user}" --password "${int_entplus_deployer_password}" --target "inst-jfrog-kubelet-credentials-provider/${ENTPLUS_REPOSITORY_VERSION}/"
             - echo "Finished pushing artifacts to entplus"
