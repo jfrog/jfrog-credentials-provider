@@ -16,8 +16,6 @@ pipelines:
         - name: entplus_deployer
         - name: entplus_jfrog_io_docker
         - name: credentials_provider_github  # Add GitHub integration for API access
-      environmentVariables:
-        GITHUB_RELEASE_TAG_NAME: "0.0.0"
     steps:
       - name: push_release_artifacts_to_entplus
         type: Bash
