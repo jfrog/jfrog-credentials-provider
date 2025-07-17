@@ -16,6 +16,8 @@ pipelines:
         - name: entplus_deployer
         - name: entplus_jfrog_io_docker
         - name: credentials_provider_github  # Add GitHub integration for API access
+      environmentVariables:
+        GITHUB_RELEASE_TAG_NAME: "0.0.0"
     steps:
       - name: push_release_artifacts_to_entplus
         type: Bash
@@ -36,6 +38,9 @@ pipelines:
               trigger: true
         execution:
           onStart:
+            - task: jfrog/setup-jfrog-cli@v0.1.0
+              input:
+                version: "2.26.1" 
             - echo "Based out of release ${res_kubelet_credentials_provider_github_isRelease}"
             - echo "Installing Github CLI"
             - |
@@ -47,7 +52,6 @@ pipelines:
                   ARCH_SUFFIX="arm64"
               fi
             - curl -L "https://github.com/cli/cli/releases/download/v2.74.2/gh_2.74.2_linux_$ARCH_SUFFIX.tar.gz" | tar xz
-            - ls
             - sudo mv "gh_2.74.2_linux_$ARCH_SUFFIX"/bin/gh /usr/local/bin/gh
             - sudo chmod +x /usr/local/bin/gh
             - echo "Github CLI installed"
@@ -56,5 +60,7 @@ pipelines:
             - echo "Pushing tag ${GITHUB_RELEASE_TAG_NAME} with release ${res_kubelet_credentials_provider_github_releaseName}"
             - mkdir -p "release-${GITHUB_RELEASE_TAG_NAME}" && cd "release-${GITHUB_RELEASE_TAG_NAME}"
             - /usr/local/bin/gh release download "${GITHUB_RELEASE_TAG_NAME}" --repo "${GITHUB_REPO_URL}" --clobber
-            - jf rt u * --url "${int_entplus_deployer_url}" --user "${int_entplus_deployer_user}" --password "${int_entplus_deployer_password}" --target "inst-jfrog-kubelet-credentials-provider/${GITHUB_RELEASE_TAG_NAME}/"
+            - echo "Strip V if it exists"
+            - ENTPLUS_REPOSITORY_VERSION=$(echo "${GITHUB_RELEASE_TAG_NAME}" | sed 's/^v//')
+            - jf rt u * --url "${int_entplus_deployer_url}" --user "${int_entplus_deployer_user}" --password "${int_entplus_deployer_password}" --target "inst-jfrog-kubelet-credentials-provider/${ENTPLUS_REPOSITORY_VERSION}/"
             - echo "Finished pushing artifacts to entplus"
