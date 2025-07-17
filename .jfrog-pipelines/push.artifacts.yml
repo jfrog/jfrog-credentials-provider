@@ -62,5 +62,5 @@ pipelines:
             - /usr/local/bin/gh release download "${GITHUB_RELEASE_TAG_NAME}" --repo "${GITHUB_REPO_URL}" --clobber
             - echo "Strip V if it exists"
             - ENTPLUS_REPOSITORY_VERSION=$(echo "${GITHUB_RELEASE_TAG_NAME}" | sed 's/^v//')
-            - jfrog rt u "*" --url "${int_entplus_deployer_url}" --user "${int_entplus_deployer_user}" --password "${int_entplus_deployer_password}" "inst-jfrog-kubelet-credentials-provider/${ENTPLUS_REPOSITORY_VERSION}/"
+            - jfrog rt u "*" --url "${int_entplus_deployer_url}" --user "${int_entplus_deployer_user}" --password "${int_entplus_deployer_apikey}" "inst-jfrog-kubelet-credentials-provider/${ENTPLUS_REPOSITORY_VERSION}/"
             - echo "Finished pushing artifacts to entplus"
