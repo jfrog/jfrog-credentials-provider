@@ -39,6 +39,8 @@ pipelines:
             - task: jfrog/setup-jfrog-cli@v0.1.0
               input:
                 version: "2.26.1" 
+            - jf version | echo "True"
+            - jfrog version | echo "True"
             - echo "Based out of release ${res_kubelet_credentials_provider_github_isRelease}"
             - echo "Installing Github CLI"
             - |
