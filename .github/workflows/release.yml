@@ -27,14 +27,6 @@ jobs:
           cd build/
           make build-all
 
-      - name: Debug Secret Length
-        run: |
-          echo "Key length: $(echo "${{ secrets.GPG_PRIVATE_KEY }}" | wc -c)"
-
-      - name: Debug Secret Content
-        run: |
-          echo "Key starts with: $(echo "${{ secrets.GPG_PRIVATE_KEY }}" | head -n 1)"
-
       - name: Import GPG Private Key
         run: |
           echo -n "$GPG_SIGNING_KEY" | base64 -d | gpg --batch --yes --import
@@ -51,11 +43,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.tag }}
+          generate_release_notes: true
           files: |
             build/bin/jfrog-credential-provider-aws-linux-amd64
             build/bin/jfrog-credential-provider-aws-linux-arm64
             build/bin/jfrog-credential-provider-aws-linux-amd64.asc
             build/bin/jfrog-credential-provider-aws-linux-arm64.asc
-            # build/bootstrap-{{ github.event.inputs.Tag }}.sh
-            # terraform-prod:jfrog-credential-provider-terraform-{{ github.event.inputs.Tag }}.zip
     

@@ -3,9 +3,9 @@
   "matchImages": [
     "*.jfrog.io"
   ],
-  // Set defaultCacheDuration lower than secret_ttl_seconds (2h/7200s < 7800s)
+  // Set defaultCacheDuration lower than secret_ttl_seconds (4h/7800s < 18000s)
   // This ensures credentials remain valid for the entire cache duration
-  "defaultCacheDuration": "2h",
+  "defaultCacheDuration": "4h",
   "apiVersion": "credentialprovider.kubelet.k8s.io/v1",
   "env": [   
     {
@@ -31,7 +31,7 @@
     // This prevents tokens from expiring while still being used from cache
     {
       "name": "secret_ttl_seconds",
-      "value": "7800"      
+      "value": "18000"      
     },
     //relevant only for oidc flow
     {

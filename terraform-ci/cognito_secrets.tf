@@ -41,7 +41,7 @@ resource "aws_cognito_resource_server" "jfrog_oidc_resource" {
 }
 
 resource "aws_secretsmanager_secret" "jfrog_oidc_integration_secret" {
-    name = "jfrog_oidc_integration_secret__${var.region}"
+    name = "jfrog_oidc_integration_secret_${var.region}"
 
     recovery_window_in_days = 0
     force_overwrite_replica_secret = true

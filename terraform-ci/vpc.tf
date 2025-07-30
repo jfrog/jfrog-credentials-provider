@@ -3,6 +3,7 @@ module "vpc" {
     count = var.create_eks_cluster ? 1 : 0
 
     source  = "terraform-aws-modules/vpc/aws"
+    version = "~> 6.0.0"
 
     name = "demo-vpc"
 

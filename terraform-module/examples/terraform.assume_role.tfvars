@@ -55,7 +55,7 @@ eks_node_group_configuration = {
 # kubeconfig_path = "~/.kube/config"
 
 # JFrog Credential Provider Binary URL
-jfrog_credential_provider_binary_url = "https://github.com/jfrog/jfrog-credentials-provider/releases/download/v0.1.0/jfrog-credential-provider-aws-linux"
+jfrog_credential_provider_binary_url = "https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/0.0.5/jfrog-credential-provider-aws-linux"
 
 # OIDC Configuration (Required when authentication_method = "cognito_oidc")
 # jfrog_oidc_provider_name = "jfrog-aws-oidc-provider"

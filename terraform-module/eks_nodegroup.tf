@@ -6,7 +6,7 @@ resource "local_file" "jfrog_provider_oidc" {
         "matchImages": [
             "*.jfrog.io"
         ],
-        "defaultCacheDuration": "30m",
+        "defaultCacheDuration": "4h",
         "apiVersion": "credentialprovider.kubelet.k8s.io/v1",
         "env": [
             {
@@ -38,6 +38,10 @@ resource "local_file" "jfrog_provider_oidc" {
             "value": "read"
             },
             {
+            "name": "secretTTL",
+            "value": "5h"
+            },
+            {
             "name": "secret_name",
             "value": "${var.aws_cognito_user_pool_secret_name}"
             },
@@ -60,7 +64,7 @@ resource "local_file" "jfrog_provider_assume_role"  {
       "matchImages": [
         "*.jfrog.io"
       ],
-      "defaultCacheDuration": "5h",
+      "defaultCacheDuration": "4h",
       "apiVersion": "credentialprovider.kubelet.k8s.io/v1",
       "env": [
         {
@@ -74,6 +78,10 @@ resource "local_file" "jfrog_provider_assume_role"  {
         {
           "name": "aws_role_name",
           "value": "${local.iam_role_name}"
+        },
+        {
+        "name": "secretTTL",
+        "value": "5h"
         }
       ]
     } 
@@ -95,10 +103,12 @@ locals {
 module "eks_managed_node_group" {
     for_each = var.create_eks_node_groups ? { for ng in var.eks_node_group_configuration.node_groups : ng.name => ng } : {}
     source   = "terraform-aws-modules/eks/aws//modules/eks-managed-node-group"
+    version  = "~> 21.0.0"
 
     cluster_name                = var.eks_node_group_configuration.cluster_name
+    use_latest_ami_release_version = false
     name                        = each.value.name
-    cluster_service_ipv4_cidr   = var.eks_node_group_configuration.cluster_service_ipv4_cidr
+    cluster_service_cidr       = var.eks_node_group_configuration.cluster_service_ipv4_cidr
     subnet_ids                  = var.eks_node_group_configuration.subnet_ids
     desired_size                = each.value.desired_size
     max_size                    = each.value.max_size
@@ -130,5 +140,5 @@ module "eks_managed_node_group" {
     }
     ]
     labels = each.value.labels != null ? each.value.labels : {}
-    taints = each.value.taints != null ? each.value.taints : []
+    taints = each.value.taints != null ? each.value.taints : {}
 }

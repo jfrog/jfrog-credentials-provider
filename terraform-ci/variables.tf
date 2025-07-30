@@ -62,14 +62,12 @@ variable "cluster_version" {
 
 # The full URL to the JFrog Credential Provider binary
 variable "jfrog_credential_provider_binary_url" {
-  # default = "https://eldada.jfrog.io/artifactory/public-local/jfrog_credentials_provider/jfrog-credential-provider-aws-linux-arm64" # Default removed
   description = "The full URL to the JFrog Credential Provider binary. Example: 'https://releases.jfrog.io/jfrog_credentials_provider/jfrog-credential-provider-aws-linux-arm64' or your custom Artifactory URL."
   type        = string
 }
 
 # The JFrog Artifactory URL (the one that will be the EKS container registry)
 variable "artifactory_url" {
-  # default = "eldada.jfrog.io" # Default removed
   description = "The JFrog Artifactory URL (e.g., mycompany.jfrog.io) that will be the EKS container registry."
   type        = string
 }
@@ -147,7 +145,7 @@ variable "daemonset_node_group_desired_size" {
 variable "alpine_tools_image" {
   description = "Container image for alpine-with-tools used in the injector init container."
   type        = string
-  default     = "eldada.jfrog.io/docker/alpine-with-tools:3.21.0" # Consider changing domain or making it fully generic
+  default     = "eldada.jfrog.io/docker/alpine-with-tools:3.21.0" 
 }
 
 variable "pause_image" {
@@ -159,7 +157,7 @@ variable "pause_image" {
 variable "busybox_image_ds" {
   description = "Container image for the busybox pod on the daemonset node group for testing."
   type        = string
-  default     = "partnership-docker-remote-test.jfrog.io/busybox:latest" # Consider changing domain or making it fully generic
+  default     = "partnership-docker-remote-test.jfrog.io/busybox:latest"
 }
 
 variable "ami_type" {

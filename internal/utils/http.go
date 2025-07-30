@@ -16,8 +16,10 @@ func HttpReq(s *service.Service, ctx context.Context, url string, body []byte, r
 	}
 	// set headers
 	req.Header.Set("Content-Type", "application/json")
-	for k, v := range request.Header {
-		req.Header.Add(k, v[0])
+	if request != nil {
+		for k, v := range request.Header {
+			req.Header.Add(k, v[0])
+		}
 	}
 
 	resp, err := s.Client.Do(req)

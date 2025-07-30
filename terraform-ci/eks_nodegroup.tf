@@ -17,15 +17,16 @@ module "eks" {
     count = var.create_eks_cluster ? 1 : 0
 
     source  = "terraform-aws-modules/eks/aws"
+    version = "~> 21.0.0"
 
-    cluster_name    = local.cluster_name
-    cluster_version = var.cluster_version
+    name    = local.cluster_name
+    kubernetes_version = var.cluster_version
 
     enable_cluster_creator_admin_permissions = true
-    cluster_endpoint_public_access           = true
-    cluster_endpoint_public_access_cidrs     = var.cluster_public_access_cidrs
+    endpoint_public_access           = true
+    endpoint_public_access_cidrs     = var.cluster_public_access_cidrs
 
-    cluster_addons = {
+    addons = {
         aws-ebs-csi-driver = {
             most_recent = true
             service_account_role_arn = module.ebs_csi_irsa_role[0].iam_role_arn
@@ -38,11 +39,11 @@ module "eks" {
     vpc_id     = module.vpc[0].vpc_id
     subnet_ids = module.vpc[0].private_subnets
 
-    eks_managed_node_group_defaults = {
-        ami_type = "AL2023_ARM_64_STANDARD"
-        create_iam_role          = false
-        iam_role_arn             = aws_iam_role.eks_node_role.arn
-    }
+    # eks_managed_node_group_defaults = {
+    #     ami_type = "AL2023_ARM_64_STANDARD"
+    #     create_iam_role          = false
+    #     iam_role_arn             = aws_iam_role.eks_node_role.arn
+    # }
 
     eks_managed_node_groups = {
         main = {
@@ -53,6 +54,11 @@ module "eks" {
             min_size     = 1
             max_size     = 3
             desired_size = 2
+
+            # Settings from the defaults block are now here:
+            ami_type        = "AL2023_ARM_64_STANDARD"
+            create_iam_role = false
+            iam_role_arn    = aws_iam_role.eks_node_role.arn
         }
     }
 }
@@ -60,17 +66,19 @@ module "eks" {
 
 module "daemonset_test_ng" {
   source = "terraform-aws-modules/eks/aws//modules/eks-managed-node-group"
+  version = "~> 21.0.0"
 
   name         = "kubelet-plugin-daemonset-test-ng"
   cluster_name = var.create_eks_cluster ? module.eks[0].cluster_name : var.self_managed_eks_cluster.name
   subnet_ids = data.aws_eks_cluster.eks_cluster_data.vpc_config[0].subnet_ids
-  cluster_service_ipv4_cidr = data.aws_eks_cluster.eks_cluster_data.kubernetes_network_config[0].service_ipv4_cidr
+  cluster_service_cidr = data.aws_eks_cluster.eks_cluster_data.kubernetes_network_config[0].service_ipv4_cidr
 
   instance_types = var.daemonset_node_group_instance_types
   ami_type       = var.ami_type
   min_size       = var.daemonset_node_group_min_size
   max_size       = var.daemonset_node_group_max_size
   desired_size   = var.daemonset_node_group_desired_size
+  use_latest_ami_release_version = false
 
   create_iam_role           = false
   iam_role_arn              = aws_iam_role.eks_node_role.arn
@@ -79,13 +87,13 @@ module "daemonset_test_ng" {
     labels = {
         onlyForDaemonset = "true"
     }
-    taints = [
-        {
+    taints = {
+        forDaemonset = {
           key    = "forDaemonset"
           value  = "true"
           effect = "NO_SCHEDULE"
         }
-      ]
+      }
 
 }
 

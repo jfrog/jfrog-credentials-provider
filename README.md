@@ -1,10 +1,14 @@
+⚠️ Beta Release Notice
+
+This project is currently in its beta phase, meaning it's still under active development. We strongly recommend thorough testing in non-production environments before deployment to any production system.
+
 # JFrog Credential Provider
 
 A Kubernetes kubelet credential provider that enables seamless authentication with JFrog Artifactory for container image pulls in Amazon EKS, eliminating the need for manual image pull secret management.
 
 ## Overview
 
-The JFrog Credential Provider leverages the native Kubernetes Kubelet Credential Provider feature to dynamically retrieve credentials for pulling container images from JFrog Artifactory. This approach provides several key benefits:
+The JFrog Credential Provider leverages the native Kubernetes kubelet Credential Provider feature to dynamically retrieve credentials for pulling container images from JFrog Artifactory. This approach provides several key benefits:
 
 - **No Image Pull Secrets**: Eliminates the need to create and manage Kubernetes secrets
 - **Enhanced Security**: Credentials are retrieved dynamically rather than stored in etcd
@@ -48,7 +52,7 @@ See the [terraform-module](./terraform-module) directory for detailed deployment
 - **AWS IAM Role Assumption**: Uses EC2 instance IAM roles for authentication
 - **AWS Cognito OIDC**: Uses OIDC tokens from AWS Cognito for authentication
 
-**Note**: You must select either IAM Role Assumption OR Cognito OIDC as your authentication method - they cannot be used simultaneously in the same deployment.
+**Note**: You must select either IAM Role Assumption OR Cognito OIDC as your authentication method. They cannot be used simultaneously in the same deployment.
 
 ## Requirements
 
@@ -56,8 +60,7 @@ See the [terraform-module](./terraform-module) directory for detailed deployment
 - JFrog Artifactory instance
 - Based on your chosen authentication method:
   - **For IAM Role Assumption**: IAM role mapped to a JFrog Artifactory user
-  - **For Cognito OIDC**: OIDC provider and identity mappings
-.. more details can be found in [terraform-module](./terraform-module)
+  - **For Cognito OIDC**: OIDC provider and identity mappings. For more information, see [terraform-module](./terraform-module)
 
 
 ## Logging and Debugging
