@@ -23,11 +23,11 @@ variable "eks_node_group_configuration" {
       ami_type        = string
       instance_types  = list(string)
       labels         = optional(map(string))
-      taints         = optional(list(object({
+      taints         = optional(map(object({
         key    = string
         value  = string
         effect = string
-      })), [])
+      })), {}) 
     }))
   })
 
@@ -103,7 +103,7 @@ variable "jfrog_credential_provider_binary_url" {
   # Change default to git latest release
     description = "The full URL to the JFrog Credential Provider binary. Example: 'https://releases.jfrog.io/jfrog_credentials_provider/jfrog-credential-provider-aws-linux-arm64' or your custom Artifactory URL."
     type        = string
-    default     = "https://github.com/jfrog/jfrog-credentials-provider/releases/download/__JFROG_CREDENTIAL_PROVIDER_VERSION__/jfrog-credential-provider-aws-linux"
+    default     = "https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/0.0.5/jfrog-credential-provider-aws-linux"
 }
 
 variable "artifactory_url" {

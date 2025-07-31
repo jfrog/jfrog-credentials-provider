@@ -4,7 +4,7 @@ terraform {
     # AWS provider
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.97.0"
+      version = "~> 6.0"
     }
     # Kubernetes provider
     kubernetes = {

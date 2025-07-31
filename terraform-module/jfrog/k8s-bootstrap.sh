@@ -7,7 +7,6 @@ log () {
 }
 
 log "Startup of the JFrog Credential Plugin injector"
-cat /etc/jfrog-provider.json
 
 export IMAGE_CREDENTIAL_PROVIDER_DIR=/host/etc/eks/image-credential-provider
 export IMAGE_CREDENTIAL_PROVIDER_CONFIG=/host/etc/eks/image-credential-provider/config.json
@@ -41,9 +40,18 @@ else
     echo "Making the jfrog-credential-provider binary executable"
     chmod +x ${IMAGE_CREDENTIAL_PROVIDER_DIR}/jfrog-credential-provider
 
+    echo "Copying the /etc/jfrog-provider.json configuration file to ${IMAGE_CREDENTIAL_PROVIDER_DIR}/jfrog-provider.json"
+    cp -f /etc/jfrog-provider.json ${IMAGE_CREDENTIAL_PROVIDER_DIR}/jfrog-provider.json
+    cat ${IMAGE_CREDENTIAL_PROVIDER_DIR}/jfrog-provider.json
+    sleep 2 | # Wait a bit to ensure the file is copied before proceeding
+
     # Update the kubelet configuration to use the jfrog-credential-provider
     echo "Updating the kubelet configuration to use the jfrog-credential-provider"
-    ${IMAGE_CREDENTIAL_PROVIDER_DIR}/jfrog-credential-provider add-provider-config
+    nsenter -t 1 -m -p -- /etc/eks/image-credential-provider/jfrog-credential-provider add-provider-config
+    if [[ $? -ne 0 ]]; then
+        echo "Updating the kubelet configuration failed"
+        exit 1
+    fi
 
     log "The final ${IMAGE_CREDENTIAL_PROVIDER_CONFIG}:"
     cat ${IMAGE_CREDENTIAL_PROVIDER_CONFIG}

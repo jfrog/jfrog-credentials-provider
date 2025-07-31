@@ -33,13 +33,13 @@ module manage_eks_nodes_using_jfrog_credential_plugin {
                     createdBy = "kubelet-plugin-test-ci",
                     nodeType = "cognito-oidc"
                 }
-                taints          = [
-                    {
+                taints          = {
+                    oidcTaint = {
                         key    = "jfrog-kubelet-oidc-ng"
                         value  = "true"
                         effect = "NO_SCHEDULE"
                     }
-                ]
+                }
             }
         ]
     }

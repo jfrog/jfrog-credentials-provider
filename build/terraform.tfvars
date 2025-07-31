@@ -1,7 +1,8 @@
 region = "ap-northeast-3"
 
 # The JFrog Credential Provider binary URL (no authentication required)
-jfrog_credential_provider_binary_url = "https://eldada.jfrog.io/artifactory/public-local/jfrog_credentials_provider/jfrog-credential-provider-aws-linux"
+# added by CI
+# jfrog_credential_provider_binary_url = "https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/0.0.5/jfrog-credential-provider-aws-linux"
 
 # The JFrog Artifactory URL (the one that will be the EKS container registry)
 artifactory_url  = "partnership.jfrog.io"
@@ -19,4 +20,4 @@ self_managed_eks_cluster = {
     name = "aws-operator-jfrog"
 }
 
-jfrog_namespace = "jfrog-new"
+jfrog_namespace = "jfrog"

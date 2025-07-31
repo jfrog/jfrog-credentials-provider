@@ -3,10 +3,15 @@ on:
   workflow_dispatch:
     inputs:
       JFROG_CREDENTIAL_PLUGIN_BINARY_URL:
-        description: 'BINARY_URL'
+        description: 'BINARY_URL (CI adds arch suffix automatically)'
         required: true
-        default: "https://eldada.jfrog.io/artifactory/public-local/jfrog_credentials_provider/jfrog-credential-provider-aws-linux"
+        default: "https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/0.0.5/jfrog-credential-provider-aws-linux"
         type: string
+      DISABLE_TERRAFORM_DESTROY:
+        description: 'DISABLE_TERRAFORM_DESTROY'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   id-token: write
@@ -20,7 +25,7 @@ jobs:
   verify-kubelet-plugin:
     runs-on: self-hosted
     env:
-      JFROG_CI_ARTIFACTORY_API_TOKEN: ${{ secrets.JFROG_CI_ARTIFACTORY_API_TOKEN }}
+      ARTIFACTORY_TOKEN: ${{ secrets.ARTIFACTORY_TOKEN }}
       JFROG_CREDENTIAL_PLUGIN_BINARY_URL: ${{ github.event.inputs.JFROG_CREDENTIAL_PLUGIN_BINARY_URL }}
     steps:
       - name: Checkout
@@ -48,24 +53,24 @@ jobs:
         run: |
           echo "" >> build/terraform.tfvars
           echo "jfrog_credential_provider_binary_url=\"$JFROG_CREDENTIAL_PLUGIN_BINARY_URL\"" >> build/terraform.tfvars
-          cp build/terraform.tfvars terraform-aws/terraform.tfvars
-          cd terraform-aws
+          cp build/terraform.tfvars terraform-ci/terraform.tfvars
+          cd terraform-ci
           terraform init
       
       - name: Run Terraform CI
         id: apply
         run: |
-          cd terraform-aws
+          cd terraform-ci
           terraform apply -input=false -auto-approve
           terraform output -json > terraform_output.json
           echo "Terraform output: $(cat terraform_output.json)"
 
       - name: Destroy terraform resources
         id: destroy
-        if: always()
+        if: always() && !env.DISABLE_TERRAFORM_DESTROY
         continue-on-error: true 
         run: |
-          cd terraform-aws
+          cd terraform-ci
           terraform destroy -input=false -auto-approve
           rm terraform.tfstate terraform.tfstate.backup terraform_output.json
 
@@ -75,11 +80,11 @@ jobs:
         with:
           name: terraform-context-for-manual-cleanup
           path: |
-            terraform-aws/**/*.tf
-            terraform-aws/jfrog/* 
-            terraform-aws/terraform.tfstate
-            terraform-aws/terraform.tfstate.backup
-            terraform-aws/terraform.tfvars
-            terraform-aws/.terraform.lock.hcl
-            terraform-aws/terraform_output.json
+            terraform-ci/**/*.tf
+            terraform-ci/jfrog/* 
+            terraform-ci/terraform.tfstate
+            terraform-ci/terraform.tfstate.backup
+            terraform-ci/terraform.tfvars
+            terraform-ci/.terraform.lock.hcl
+            terraform-ci/terraform_output.json
           retention-days: 1
