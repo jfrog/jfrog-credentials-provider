@@ -1,11 +1,11 @@
-# JFrog Credential Provider - CI/CD Testing Environment
+# JFrog Kubelet Credential Provider - CI/CD Testing Environment
 
-This directory contains Terraform configuration for deploying a complete testing environment for the JFrog Credential Provider. It can either create a new AWS EKS cluster or use an existing one, with the JFrog Credential Provider pre-configured for continuous integration and testing purposes.
+This directory contains Terraform configuration for deploying a complete testing environment for the JFrog Kubelet Credential Provider. It can either create a new AWS EKS cluster or use an existing one, with the JFrog Kubelet Credential Provider pre-configured for continuous integration and testing purposes.
 
 ## Overview
 
 This CI environment is designed for:
-- Testing JFrog Credential Provider functionality
+- Testing JFrog Kubelet Credential Provider functionality
 - Validating provider deployments in CI/CD pipelines
 - Providing a reproducible testing environment for development
 - Demonstrating the integration between AWS EKS and JFrog Artifactory
@@ -27,11 +27,11 @@ The configuration supports two deployment scenarios:
 - Creates a complete EKS cluster with worker nodes
 - Sets up VPC, subnets, and all networking components
 - Configures IAM roles and security groups
-- Installs JFrog Credential Provider on all nodes
+- Installs JFrog Kubelet Credential Provider on all nodes
 
 ### 2. Use Existing EKS Cluster (`create_eks_cluster = false`)
 - Uses your existing EKS cluster
-- Adds new worker nodes with JFrog Credential Provider
+- Adds new worker nodes with JFrog Kubelet Credential Provider
 - Creates only the necessary IAM roles and node groups
 - Leaves existing infrastructure unchanged
 
@@ -134,5 +134,5 @@ If you'd want to avoid reading all of this and just want to go ahead and try it 
 2. `terraform init` 
 3. `terraform plan`
 
-This creates two node groups in an existing cluster. One installs Jfrog Credential Provider Plugin directly through user data.
+This creates two node groups in an existing cluster. One installs JFrog Kubelet Credential Provider Plugin directly through user data.
 The other node group is used for daemonset install. This will also launch two pods to verify if this works. 

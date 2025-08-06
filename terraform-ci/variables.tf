@@ -62,7 +62,7 @@ variable "cluster_version" {
 
 # The full URL to the JFrog Credential Provider binary
 variable "jfrog_credential_provider_binary_url" {
-  description = "The full URL to the JFrog Credential Provider binary. Example: 'https://releases.jfrog.io/jfrog_credentials_provider/jfrog-credential-provider-aws-linux-arm64' or your custom Artifactory URL."
+  description = "The full URL to the JFrog Credential Provider binary. Example: 'https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/0.1.0-beta.1/jfrog-credential-provider-aws-linux' or your custom Artifactory URL."
   type        = string
 }
 
@@ -145,13 +145,13 @@ variable "daemonset_node_group_desired_size" {
 variable "alpine_tools_image" {
   description = "Container image for alpine-with-tools used in the injector init container."
   type        = string
-  default     = "eldada.jfrog.io/docker/alpine-with-tools:3.21.0" 
+  default     = "releases-docker.jfrog.io/jfrog/alpine-with-tools:3.21.0" 
 }
 
 variable "pause_image" {
   description = "Container image for the pause container."
   type        = string
-  default     = "gke.gcr.io/pause:3.7"
+  default     = "releases-docker.jfrog.io/pause:3.7"
 }
 
 variable "busybox_image_ds" {

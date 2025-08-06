@@ -65,4 +65,4 @@ daemonset_configuration = {
 kubeconfig_path = "~/.kube/config"
 
 # JFrog Credential Provider Binary URL
-jfrog_credential_provider_binary_url = "https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/0.0.5/jfrog-credential-provider-aws-linux"
+jfrog_credential_provider_binary_url = "https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/0.1.0-beta.1/jfrog-credential-provider-aws-linux"

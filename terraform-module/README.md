@@ -1,16 +1,16 @@
-# JFrog Credential Provider Terraform Module
+# JFrog Kubelet Credential Provider Terraform Module
 
-This Terraform module sets up the JFrog Credential Provider for Kubernetes clusters running on AWS. It supports two authentication methods (`cognito_oidc` and `assume_role`) and offers three different deployment methods to suit various infrastructure requirements.
+This Terraform module sets up the JFrog Kubelet Credential Provider for Kubernetes clusters running on AWS. It supports two authentication methods (`cognito_oidc` and `assume_role`) and offers three different deployment methods to suit various infrastructure requirements.
 
 ## Overview
 
-JFrog Credential Provider is a kubelet credential provider that enables Kubernetes nodes to securely authenticate with JFrog Artifactory for pulling container images. This module facilitates the deployment and configuration of the JFrog Credential Provider across your Kubernetes infrastructure.
+JFrog Kubelet Credential Provider is a kubelet credential provider that enables Kubernetes nodes to securely authenticate with JFrog Artifactory for pulling container images. This module facilitates the deployment and configuration of the JFrog Kubelet Credential Provider across your Kubernetes infrastructure.
 
 ## Features
-- Configures the JFrog Credential Provider for Kubernetes clusters on AWS
+- Configures the JFrog Kubelet Credential Provider for Kubernetes clusters on AWS
 - Supports `cognito_oidc` and `assume_role` authentication methods
 - Offers three flexible deployment methods:
-  1. EKS Node Group creation with built-in JFrog Credential Provider
+  1. EKS Node Group creation with built-in JFrog Kubelet Credential Provider
   2. DaemonSet installation for existing EKS clusters
   3. AWS CLI command generation for custom instance provisioning
 
@@ -36,7 +36,7 @@ export ARTIFACTORY_TOKEN=<TOKEN>
 
 
 ### 1. EKS Node Group Creation
-This method creates new EKS node groups with the JFrog Credential Provider pre-installed as part of the node bootstrap process. Use this method when provisioning new EKS node groups.
+This method creates new EKS node groups with the JFrog Kubelet Credential Provider pre-installed as part of the node bootstrap process. Use this method when provisioning new EKS node groups.
 
 **Key Configuration Parameters:**
 ```hcl
@@ -66,12 +66,12 @@ eks_node_group_configuration = {
 
 **How It Works:**
 - Generates appropriate configuration files based on your authentication method
-- Adds the JFrog Credential Provider configuration to the EKS node's bootstrap process
+- Adds the JFrog Kubelet Credential Provider configuration to the EKS node's bootstrap process
 - Installs and configures the credential provider as part of node initialization
 - Restarts the kubelet to enable the credential provider
 
 ### 2. DaemonSet Installation
-This method deploys the JFrog Credential Provider to existing EKS clusters using a Kubernetes DaemonSet. Use this when you need to add the credential provider to already running clusters.
+This method deploys the JFrog Kubelet Credential Provider to existing EKS clusters using a Kubernetes DaemonSet. Use this when you need to add the credential provider to already running clusters.
 
 **Key Configuration Parameters:**
 ```hcl
@@ -98,16 +98,16 @@ kubeconfig_path = "~/.kube/config"
 ```
 
 **How It Works:**
-- Creates a namespace for the JFrog Credential Provider resources
+- Creates a namespace for the JFrog Kubelet Credential Provider resources
 - Deploys ConfigMaps containing provider configuration and bootstrap scripts
 - Launches a DaemonSet with privileged init containers to:
-  - Download the JFrog Credential Provider binary
+  - Download the JFrog Kubelet Credential Provider binary
   - Configure the kubelet to use the credential provider
   - Restart the kubelet service
 - Uses a lightweight pause container to maintain the DaemonSet lifecycle
 
 ### 3. AWS CLI Command Generation
-This method generates AWS CLI commands to create Launch Templates that include the JFrog Credential Provider configuration. Use this for custom instance provisioning workflows or when using AWS AutoScaling Groups with Launch Templates.
+This method generates AWS CLI commands to create Launch Templates that include the JFrog Kubelet Credential Provider configuration. Use this for custom instance provisioning workflows or when using AWS AutoScaling Groups with Launch Templates.
 
 **Key Configuration Parameters:**
 ```hcl
@@ -121,7 +121,7 @@ generate_aws_cli_command = true
 - Generates a JSON file with Launch Template data
 - Outputs an AWS CLI command that can be used to create a Launch Template
 - The command includes the user data script that will:
-  - Download the JFrog Credential Provider binary
+  - Download the JFrog Kubelet Credential Provider binary
   - Configure the kubelet credential provider
   - Restart the kubelet service
 

@@ -101,9 +101,9 @@ variable "region" {
 # This adds "-x86_64" or "-arm64" as suffix to the binary name. 
 variable "jfrog_credential_provider_binary_url" {
   # Change default to git latest release
-    description = "The full URL to the JFrog Credential Provider binary. Example: 'https://releases.jfrog.io/jfrog_credentials_provider/jfrog-credential-provider-aws-linux-arm64' or your custom Artifactory URL."
+    description = "The full URL to the JFrog Credential Provider binary. Example: 'https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/0.1.0-beta.1/jfrog-credential-provider-aws-linux' or your custom Artifactory URL."
     type        = string
-    default     = "https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/0.0.5/jfrog-credential-provider-aws-linux"
+    default     = "https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/0.1.0-beta.1/jfrog-credential-provider-aws-linux"
 }
 
 variable "artifactory_url" {
@@ -186,15 +186,14 @@ variable "iam_role_arn" {
 variable "alpine_tools_image" {
   description = "Container image for alpine-with-tools used in the injector init container."
   type        = string
-  # Needs to be pushed to releases.jfrog.io
-  default     = "eldada.jfrog.io/docker/alpine-with-tools:3.21.0"
+  default     = "releases-docker.jfrog.io/jfrog/alpine-with-tools:3.21.0"
 }
 
 variable "pause_image" {
   description = "Container image for the pause container."
   type        = string
-  # Needs to be pushed to releases.jfrog.io
-  default     = "gke.gcr.io/pause:3.7"
+  default     = "releases-docker.jfrog.io/pause:3.7"
+
 }
 
 variable "wait_for_creation" {

@@ -1,7 +1,7 @@
 # Configure the Kubernetes provider
 provider "kubernetes" {
-  host                   = data.aws_eks_cluster.eks_cluster_data.endpoint
-  cluster_ca_certificate = base64decode(data.aws_eks_cluster.eks_cluster_data.certificate_authority.0.data)
+  host                   =  var.create_eks_cluster ? module.eks[0].cluster_endpoint : data.aws_eks_cluster.eks_cluster_data.endpoint
+  cluster_ca_certificate = var.create_eks_cluster ? base64decode(module.eks[0].cluster_certificate_authority_data) : (data.aws_eks_cluster.eks_cluster_data.certificate_authority.0.data)
   token                  = data.aws_eks_cluster_auth.eks_cluster_auth.token
 }
 

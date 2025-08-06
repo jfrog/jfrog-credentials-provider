@@ -1,6 +1,6 @@
-# Contributing to JFrog Credential Provider
+# Contributing to JFrog Kubelet Credential Provider
 
-Thank you for your interest in contributing to the JFrog Credential Provider! We welcome contributions from the community.
+Thank you for your interest in contributing to the JFrog Kubelet Credential Provider! We welcome contributions from the community.
 
 ## How to Contribute
 
