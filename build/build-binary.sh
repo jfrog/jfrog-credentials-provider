@@ -24,6 +24,7 @@ for p in "${PLATFORMS[@]}"; do
     echo -e "\nBuilding"
     echo "OS:   $GOOS"
     echo "ARCH: $GOARCH"
+    echo "VERSION: $VERSION"
     final_name=$BIN'-'$GOOS'-'$GOARCH
     if [ "$GOOS" = "windows" ]; then
         final_name+='.exe'
