@@ -59,7 +59,7 @@ func CreateProviderConfigFromEnv(isYaml bool) {
 	}
 	defaultCacheDuration := os.Getenv("DEFAULT_CACHE_DURATION")
 	if defaultCacheDuration == "" {
-		defaultCacheDuration = "2h" // Default value
+		defaultCacheDuration = "4h" // Default value
 	}
 
 	// Validate conditions

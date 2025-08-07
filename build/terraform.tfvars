@@ -2,7 +2,7 @@ region = "ap-northeast-3"
 
 # The JFrog Credential Provider binary URL (no authentication required)
 # added by CI
-# jfrog_credential_provider_binary_url = "https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/0.0.5/jfrog-credential-provider-aws-linux"
+# jfrog_credential_provider_binary_url = "https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/0.1.0-beta.1/jfrog-credential-provider-aws-linux"
 
 # The JFrog Artifactory URL (the one that will be the EKS container registry)
 artifactory_url  = "partnership.jfrog.io"

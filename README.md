@@ -2,13 +2,15 @@
 
 This project is currently in its beta phase, meaning it's still under active development. We strongly recommend thorough testing in non-production environments before deployment to any production system.
 
-# JFrog Credential Provider
+# JFrog Kubelet Credential Provider
 
-A Kubernetes kubelet credential provider that enables seamless authentication with JFrog Artifactory for container image pulls in Amazon EKS, eliminating the need for manual image pull secret management.
+A [Kubernetes kubelet credential provider](https://kubernetes.io/docs/tasks/administer-cluster/kubelet-credential-provider/) **for Amazon EKS** that enables seamless authentication with JFrog Artifactory for container image pulls in Amazon EKS, eliminating the need for manual image pull secret management.
+
+> **Coming Soon**: Azure AKS and Google Cloud GKE support are currently in development.
 
 ## Overview
 
-The JFrog Credential Provider leverages the native Kubernetes kubelet Credential Provider feature to dynamically retrieve credentials for pulling container images from JFrog Artifactory. This approach provides several key benefits:
+The JFrog Kubelet Credential Provider leverages the native Kubernetes kubelet Credential Provider feature to dynamically retrieve credentials for pulling container images from JFrog Artifactory. This approach provides several key benefits:
 
 - **No Image Pull Secrets**: Eliminates the need to create and manage Kubernetes secrets
 - **Enhanced Security**: Credentials are retrieved dynamically rather than stored in etcd
@@ -18,14 +20,14 @@ The JFrog Credential Provider leverages the native Kubernetes kubelet Credential
 ## How It Works
 
 1. A pod is created with an image stored in JFrog Artifactory
-2. Kubelet identifies the image URL matches the configured pattern for the JFrog credential provider
-3. Kubelet invokes the JFrog credential provider binary
+2. Kubelet identifies the image URL matches the configured pattern for the JFrog Kubelet Credential Provider
+3. Kubelet invokes the JFrog Kubelet Credential Provider binary
 4. The provider authenticates with AWS (using IAM roles or OIDC) and exchanges credentials with Artifactory
 5. Valid registry credentials are returned to kubelet for the image pull
 
 ## Quick Start
 
-The easiest way to deploy the JFrog Credential Provider is using our Terraform module:
+The easiest way to deploy the JFrog Kubelet Credential Provider is using our Terraform module:
 
 ```bash
 cd terraform-module
@@ -39,7 +41,7 @@ terraform apply
 
 ## Deployment Options
 
-The JFrog Credential Provider supports three deployment methods:
+The JFrog Kubelet Credential Provider supports three deployment methods:
 
 1. **EKS Node Groups** - Creates new node groups with the provider pre-installed
 2. **DaemonSet** - Installs the provider on existing EKS clusters
@@ -49,8 +51,8 @@ See the [terraform-module](./terraform-module) directory for detailed deployment
 
 ## Authentication Methods
 
-- **AWS IAM Role Assumption**: Uses EC2 instance IAM roles for authentication
-- **AWS Cognito OIDC**: Uses OIDC tokens from AWS Cognito for authentication
+- **AWS IAM Role Assumption**: Uses EC2 instance [IAM roles](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html) for authentication
+- **AWS Cognito OIDC**: Uses OIDC tokens from [AWS Cognito](https://docs.aws.amazon.com/cognito/latest/developerguide/what-is-amazon-cognito.html) for authentication
 
 **Note**: You must select either IAM Role Assumption OR Cognito OIDC as your authentication method. They cannot be used simultaneously in the same deployment.
 
@@ -70,5 +72,5 @@ Plugin logs are available in your kubelet VM at:
 tail -f /var/log/jfrog-credential-provider.log
 ```
 
-For detailed debugging instructions, see the [ref.doc](./to_be_entered_later) file.
+For detailed debugging instructions, see the [debug doc](./debug.md) file.
 

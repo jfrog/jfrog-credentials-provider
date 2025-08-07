@@ -1,11 +1,11 @@
-# JFrog Credential Provider Module Example
+# JFrog Kubelet Credential Provider Module Example
 
-This directory contains a complete implementation example of the JFrog Credential Provider Terraform module using the EKS Node Group deployment method with IAM Role authentication.
+This directory contains a complete implementation example of the JFrog Kubelet Credential Provider Terraform module using the EKS Node Group deployment method with IAM Role authentication.
 
 ## Implementation Details
 
 This example demonstrates:
-- Setting up the JFrog Credential Provider with EKS Node Group deployment
+- Setting up the JFrog Kubelet Credential Provider with EKS Node Group deployment
 - Using AWS IAM Role authentication method
 - Creating a complete Terraform module structure
 

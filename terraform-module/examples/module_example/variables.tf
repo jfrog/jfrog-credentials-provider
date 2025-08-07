@@ -73,6 +73,6 @@ variable "node_groups" {
 
 variable "jfrog_credential_provider_binary_url" {
   description = "URL to the JFrog Credential Provider binary"
-  default     = "https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/0.0.5/jfrog-credential-provider-aws-linux"
+  default     = "https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/0.1.0-beta.1/jfrog-credential-provider-aws-linux"
   type        = string
 }
