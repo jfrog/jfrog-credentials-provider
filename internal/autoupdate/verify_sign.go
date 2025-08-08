@@ -1,13 +1,27 @@
-
 // Package autoupdate provides signature verification for the JFrog credential provider auto-update process.
+// Copyright (c) JFrog Ltd. (2025)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package autoupdate
 
 import (
-    "bytes"
-    "os"
-    "strings"
-    "golang.org/x/crypto/openpgp"
-    "jfrog-credential-provider/internal/logger"
+	"bytes"
+	"jfrog-credential-provider/internal/logger"
+	"os"
+	"strings"
+
+	"golang.org/x/crypto/openpgp"
 )
 
 const publicKey = `
@@ -44,33 +58,33 @@ R2FfWks6AgUeIK6mEkt3TcPK1EyuPY9m65d/aJynSPD2xt0/2f1d6eDvHH2Maa0i
 `
 
 // verifyBinaryWithSignature verifies the binary file against its signature using the embedded public PGP key.
-func verifyBinaryWithSignature(logs *logger.Logger, binaryPath string, signaturePath string) error{
-    publicKey := publicKey
-    keyRing, err := openpgp.ReadArmoredKeyRing(strings.NewReader(publicKey))
-    if err != nil {
-        logs.Error("failed to read public key: " + err.Error())
-        return err
-    }
+func verifyBinaryWithSignature(logs *logger.Logger, binaryPath string, signaturePath string) error {
+	publicKey := publicKey
+	keyRing, err := openpgp.ReadArmoredKeyRing(strings.NewReader(publicKey))
+	if err != nil {
+		logs.Error("failed to read public key: " + err.Error())
+		return err
+	}
 
-    // Load the binary
-    binaryData, err := os.ReadFile(binaryPath)
-    if err != nil {
-        logs.Error("failed to read binary file: " + err.Error())
-        return err
-    }
+	// Load the binary
+	binaryData, err := os.ReadFile(binaryPath)
+	if err != nil {
+		logs.Error("failed to read binary file: " + err.Error())
+		return err
+	}
 
-    // Load the signature
-    signatureData, err := os.ReadFile(signaturePath)
-    if err != nil {
-        logs.Error("failed to read signature file: " + err.Error())
-        return err	
-    }
+	// Load the signature
+	signatureData, err := os.ReadFile(signaturePath)
+	if err != nil {
+		logs.Error("failed to read signature file: " + err.Error())
+		return err
+	}
 
-    _, err = openpgp.CheckArmoredDetachedSignature(keyRing, bytes.NewReader(binaryData), bytes.NewReader(signatureData))
-    if err != nil {
-        logs.Error("signature verification failed: " + err.Error())
-        return err
-    }
-    logs.Info("Signature verification successful for binary: " + binaryPath)
-    return nil
+	_, err = openpgp.CheckArmoredDetachedSignature(keyRing, bytes.NewReader(binaryData), bytes.NewReader(signatureData))
+	if err != nil {
+		logs.Error("signature verification failed: " + err.Error())
+		return err
+	}
+	logs.Info("Signature verification successful for binary: " + binaryPath)
+	return nil
 }

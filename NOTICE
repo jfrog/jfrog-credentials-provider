@@ -1,0 +1,19 @@
+jfrog-credentials-provider
+Copyright 2025 JFrog Ltd.
+
+This software uses the following third-party libraries:
+
+AWS SDK for Go v2:
+- github.com/aws/aws-sdk-go-v2 - https://github.com/aws/aws-sdk-go-v2 - Licensed under Apache License 2.0
+
+AWS Smithy Go:
+- github.com/aws/smithy-go - https://github.com/aws/smithy-go - Licensed under Apache License 2.0
+
+Go Standard Library Extensions:
+- golang.org/x/crypto - https://github.com/golang/crypto - Licensed under BSD 3-Clause License
+- golang.org/x/mod - https://github.com/golang/mod - Licensed under BSD 3-Clause License
+
+YAML Parser:
+- gopkg.in/yaml.v3 - https://github.com/go-yaml/yaml - Licensed under Apache License 2.0
+
+Any modifications or contributions to this software should include appropriate attributions as described in the above licenses. 

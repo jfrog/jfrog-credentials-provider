@@ -1,19 +1,33 @@
+// Copyright (c) JFrog Ltd. (2025)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package provider
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sync"
 	service "jfrog-credential-provider/internal"
+	"jfrog-credential-provider/internal/autoupdate"
 	"jfrog-credential-provider/internal/handlers"
 	"jfrog-credential-provider/internal/logger"
-	"jfrog-credential-provider/internal/autoupdate"
 	"jfrog-credential-provider/internal/utils"
 	"log"
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -61,7 +75,6 @@ func StartProvider(ctx context.Context, Version string) {
 		defer wg.Done()
 		autoupdate.AutoUpdate(logs, client, ctx, Version)
 	}()
-
 
 	rtUsername, rtToken := handleAWSAuth(svc, ctx, logs, awsAuthMethod, awsRoleName, artifactoryUrl, secretTTL)
 	logs.Info("JFrog Username used for pull :" + rtUsername)

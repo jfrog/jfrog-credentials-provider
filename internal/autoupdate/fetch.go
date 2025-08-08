@@ -1,16 +1,31 @@
+// Copyright (c) JFrog Ltd. (2025)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package autoupdate
 
 import (
 	"context"
-	"net/http"
-	"strings"
-	"os"
 	"encoding/json"
-	"io"
 	"fmt"
-	"golang.org/x/mod/semver"
-	"runtime"
+	"io"
 	"jfrog-credential-provider/internal/logger"
+	"net/http"
+	"os"
+	"runtime"
+	"strings"
+
+	"golang.org/x/mod/semver"
 )
 
 // addVPrefix ensures the version tag starts with 'v'. If not, it prepends 'v'.
@@ -26,15 +41,15 @@ func addVPrefix(logs *logger.Logger, versionTag string) string {
 // fetchLatestVersionTag fetches the latest available release tag from the JFrog plugin releases URL and compares it to the current version. Outputs a new version tag if a newer version is available.
 func fetchLatestVersionTag(ctx context.Context, client *http.Client, currentVersion string, jfrogPluginReleasesUrl string, logs *logger.Logger) (string, error) {
 	// jfrogPluginReleasesUrl = jfrogPluginReleasesUrl + "/releases"
-	request, err := http.NewRequestWithContext(ctx,"GET", jfrogPluginReleasesUrl, nil)
+	request, err := http.NewRequestWithContext(ctx, "GET", jfrogPluginReleasesUrl, nil)
 	logs.Info("Fetching latest version from: " + jfrogPluginReleasesUrl)
 	if err != nil {
-		logs.Error("Error creating request: "+err.Error())
+		logs.Error("Error creating request: " + err.Error())
 		return "", err
 	}
 	response, err := client.Do(request)
 	if err != nil {
-		logs.Error("Error sending request: "+err.Error())
+		logs.Error("Error sending request: " + err.Error())
 		return "", err
 	}
 
@@ -48,21 +63,20 @@ func fetchLatestVersionTag(ctx context.Context, client *http.Client, currentVers
 	var releaseData map[string]interface{}
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
-		logs.Error("Error reading response body: "+err.Error())
+		logs.Error("Error reading response body: " + err.Error())
 		return "", err
 	}
-
 
 	// err = json.Unmarshal(body, &releases)
 	err = json.Unmarshal(body, &releaseData)
 	if err != nil {
-		logs.Error("Error decoding response: "+err.Error())
+		logs.Error("Error decoding response: " + err.Error())
 		return "", err
 	}
 
 	var latestVersionTag = addVPrefix(logs, currentVersion)
 	if !semver.IsValid(currentVersion) {
-		logs.Error("Current Version" + currentVersion +  "isn't valid! Exiting")
+		logs.Error("Current Version" + currentVersion + "isn't valid! Exiting")
 		return "", fmt.Errorf("invalid current version: %s", currentVersion)
 	}
 
@@ -85,7 +99,7 @@ func fetchLatestVersionTag(ctx context.Context, client *http.Client, currentVers
 			continue
 		}
 		releaseName = strings.TrimPrefix(releaseName, "/")
-		releaseName= addVPrefix(logs, releaseName)
+		releaseName = addVPrefix(logs, releaseName)
 		logs.Debug("Checking if " + releaseName + " version is latest")
 		if semver.IsValid(releaseName) && semver.Compare(latestVersionTag, releaseName) < 0 {
 			logs.Debug("Found newer version: " + releaseName)
@@ -104,23 +118,23 @@ func fetchLatestVersionTag(ctx context.Context, client *http.Client, currentVers
 func downloadReleaseArtifacts(ctx context.Context, logs *logger.Logger, client *http.Client, filepath string, downloadUrl string) error {
 	logs.Info("Downloading release artifacts from: " + downloadUrl + " to " + filepath)
 	if _, err := os.Stat(filepath); err == nil {
-        logs.Info("File " + filepath + " exists. Deleting...")
-        err := os.Remove(filepath)
-        if err != nil {
+		logs.Info("File " + filepath + " exists. Deleting...")
+		err := os.Remove(filepath)
+		if err != nil {
 			logs.Error("Failed to delete existing file: " + err.Error())
-        }
-        logs.Info("File " + filepath + " deleted successfully.")
-    }
+		}
+		logs.Info("File " + filepath + " deleted successfully.")
+	}
 
 	out, err := os.Create(filepath)
-	if err != nil  {
+	if err != nil {
 		logs.Error("Failed to create new file: " + err.Error())
 	}
 	defer out.Close()
 
 	req, err := http.NewRequestWithContext(ctx, "GET", downloadUrl, nil)
 	if err != nil {
-		logs.Error("Received some error while forming get request: "+err.Error())
+		logs.Error("Received some error while forming get request: " + err.Error())
 		return err
 	}
 	// req.Header.Set("Accept", "application/octet-stream")
@@ -128,23 +142,22 @@ func downloadReleaseArtifacts(ctx context.Context, logs *logger.Logger, client *
 
 	response, err := client.Do(req)
 	if err != nil {
-		logs.Error("Received error while downloading: "+err.Error())
+		logs.Error("Received error while downloading: " + err.Error())
 		return err
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
-		logs.Error("Error: received non-200 response code: "+fmt.Sprint(response.StatusCode))
+		logs.Error("Error: received non-200 response code: " + fmt.Sprint(response.StatusCode))
 	}
 
 	_, err = io.Copy(out, response.Body)
-	if err != nil  {
-		logs.Error("Error copying response body: "+err.Error())
+	if err != nil {
+		logs.Error("Error copying response body: " + err.Error())
 		return err
 	}
 	return nil
 }
-
 
 // getArchSuffix returns the architecture suffix based on the current runtime architecture.
 func getArchSuffix(logs *logger.Logger) string {
