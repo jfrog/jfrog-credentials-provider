@@ -1,16 +1,30 @@
+// Copyright (c) JFrog Ltd. (2025)
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package autoupdate
 
 import (
-	"jfrog-credential-provider/internal/utils"
-	"jfrog-credential-provider/internal/logger"
+	"bytes"
+	"context"
+	"encoding/json"
 	"fmt"
+	"jfrog-credential-provider/internal/logger"
+	"jfrog-credential-provider/internal/utils"
+	"net/http"
 	"os"
 	"os/exec"
 	"strings"
-	"bytes"
-	"encoding/json"
-	"context"
-	"net/http"
 )
 
 type EnvVar struct {
@@ -19,16 +33,16 @@ type EnvVar struct {
 }
 
 type Provider struct {
-	Name                string   `json:"name"`
-	MatchImages         []string `json:"matchImages"`
+	Name                 string   `json:"name"`
+	MatchImages          []string `json:"matchImages"`
 	DefaultCacheDuration string   `json:"defaultCacheDuration"`
-	ApiVersion          string   `json:"apiVersion"`
-	Env                 []EnvVar `json:"env"`
+	ApiVersion           string   `json:"apiVersion"`
+	Env                  []EnvVar `json:"env"`
 }
 
 type CredentialProviderConfig struct {
-	ApiVersion string   `json:"apiVersion"`
-	Kind       string   `json:"kind"`
+	ApiVersion string     `json:"apiVersion"`
+	Kind       string     `json:"kind"`
 	Providers  []Provider `json:"providers"`
 }
 
@@ -36,13 +50,13 @@ type CredentialProviderConfig struct {
 func loadProviderEnvsFromFile(logs *logger.Logger, configPath string, targetProviderName string) ([]string, error) {
 	data, err := os.ReadFile(configPath)
 	if err != nil {
-		logs.Error("Error reading config file: "+err.Error())
+		logs.Error("Error reading config file: " + err.Error())
 		return nil, err
 	}
 
 	var config CredentialProviderConfig
 	if err := json.Unmarshal(data, &config); err != nil {
-		logs.Error("Error unmarshalling config JSON: "+err.Error())
+		logs.Error("Error unmarshalling config JSON: " + err.Error())
 		return nil, err
 	}
 
@@ -71,12 +85,12 @@ func createRequestJson(logs *logger.Logger, artifactoryUrl string) ([]byte, erro
 	jsonReq := utils.CredentialProviderRequest{
 		ApiVersion: "credentialutils.kubelet.k8s.io/v1",
 		Kind:       "CredentialProviderRequest",
-		Image: 		artifactoryUrl,
+		Image:      artifactoryUrl,
 	}
 
 	jsonBytes, err := json.Marshal(jsonReq)
 	if err != nil {
-		logs.Error("Error marshalling JSON: "+err.Error())
+		logs.Error("Error marshalling JSON: " + err.Error())
 		return nil, err
 	}
 
@@ -86,7 +100,7 @@ func createRequestJson(logs *logger.Logger, artifactoryUrl string) ([]byte, erro
 // fetchArtifactoryAuth runs the new binary with the given request and environment, returning the parsed response.
 func fetchArtifactoryAuth(ctx context.Context, client *http.Client, logs *logger.Logger, newBinaryPath string, kubeletPluginRequest []byte, kubeletProviderEnvs []string) (utils.CredentialProviderResponse, error) {
 	logs.Info("Validating new binary with request JSON: " + string(kubeletPluginRequest))
-	
+
 	os.Chmod(newBinaryPath, 0755)
 	cmd := exec.Command(newBinaryPath)
 	cmd.Stdin = strings.NewReader(string(kubeletPluginRequest))
@@ -99,7 +113,6 @@ func fetchArtifactoryAuth(ctx context.Context, client *http.Client, logs *logger
 		cmd.Env = append(cmd.Env, kubeletProviderEnvs...)
 	}
 	logs.Info("Validating new binary with following environment variables: " + strings.Join(cmd.Env, " "))
-
 
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
@@ -140,10 +153,10 @@ func fetchArtifactoryAuth(ctx context.Context, client *http.Client, logs *logger
 }
 
 // validateAuthWithArtifactory validates the provider's credentials with the Artifactory server.
-func validateAuthWithArtifactory(ctx context.Context, client *http.Client, logs *logger.Logger,  providerResponse utils.CredentialProviderResponse, artifactoryUrl string) error {
+func validateAuthWithArtifactory(ctx context.Context, client *http.Client, logs *logger.Logger, providerResponse utils.CredentialProviderResponse, artifactoryUrl string) error {
 
 	artifactoryUrl = fmt.Sprintf("%s%s", "https://", artifactoryUrl)
-	artRequest, err := http.NewRequestWithContext(ctx,"GET", artifactoryUrl, nil)
+	artRequest, err := http.NewRequestWithContext(ctx, "GET", artifactoryUrl, nil)
 	if err != nil {
 		logs.Error("Error creating request to Artifactory: " + err.Error())
 		return err
@@ -156,7 +169,7 @@ func validateAuthWithArtifactory(ctx context.Context, client *http.Client, logs 
 		return err
 	}
 	defer response.Body.Close() // Ensure response body is closed
-	
+
 	if response.StatusCode != http.StatusOK {
 		logs.Error("Error: received non-200 response code from Artifactory: " + fmt.Sprint(response.StatusCode))
 		return err
