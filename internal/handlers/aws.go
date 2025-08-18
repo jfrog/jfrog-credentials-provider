@@ -37,6 +37,7 @@ const (
 	REGION_URL         = "http://169.254.169.254/latest/meta-data/placement/region"
 	GRANT_TYPE         = "client_credentials"
 	AWS_OIDC_TOKEN_URL = "https://$user_pool_resource_domain.auth.$region.amazoncognito.com/oauth2/token"
+	METADATA_URL       = "http://169.254.169.254/latest/meta-data/"
 )
 
 type AwsOidcResult struct {
@@ -180,12 +181,12 @@ func GetAWSSignedRequest(s *service.Service, ctx context.Context, awsRoleName st
 	// get token from metadata service
 	token, err := getToken(s, ctx)
 	if err != nil {
-		return nil, fmt.Errorf("Error getting aws token, ", err)
+		return nil, fmt.Errorf("Error getting aws token, %v", err)
 	}
 	// get temp credentials from metadata service
 	tempCredentials, err := getTempCredentials(s, ctx, token, awsRoleName)
 	if err != nil {
-		return nil, fmt.Errorf("GetTempCredentials returned err ", err)
+		return nil, fmt.Errorf("GetTempCredentials returned err %v", err)
 	}
 	s.Logger.Info("GetTempCredentials returned code :" + tempCredentials.Code)
 	if tempCredentials.Code != "Success" {
@@ -282,14 +283,14 @@ func getAWSRegion(s *service.Service, ctx context.Context, token string) (string
 	// Then get the region
 	req, err := http.NewRequestWithContext(ctx, "GET", REGION_URL, nil)
 	if err != nil {
-		return "", fmt.Errorf("Error creating request to get AWS region:", err)
+		return "", fmt.Errorf("Error creating request to get AWS region: %v", err)
 	}
 
 	req.Header.Add("X-aws-ec2-metadata-token", token)
 
 	resp, err := s.Client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("Error getting AWS region:", err)
+		return "", fmt.Errorf("Error getting AWS region: %v", err)
 	}
 	defer resp.Body.Close()
 
@@ -346,7 +347,7 @@ func getResourceServerId(s *service.Service, cfg aws.Config, userPoolName string
 	cognitoSvc := cognitoidentityprovider.NewFromConfig(cfg)
 	userPoolId, err := getUserPoolId(s, cfg, cognitoSvc, userPoolName)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to get user pool id:", err)
+		return "", "", fmt.Errorf("failed to get user pool id: %v", err)
 	}
 	s.Logger.Info("user pool id :" + userPoolId)
 	// Retrieve detailed information about the user pool
@@ -356,7 +357,7 @@ func getResourceServerId(s *service.Service, cfg aws.Config, userPoolName string
 	// Retrieve detailed information about the user pool
 	userPoolResult, err := cognitoSvc.DescribeUserPool(context.TODO(), describeInput)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to describe user pool:", err)
+		return "", "", fmt.Errorf("failed to describe user pool: %v", err)
 	}
 	// Print the User Pool Domain
 	if userPoolResult.UserPool.Domain != nil {
@@ -377,7 +378,7 @@ func getResourceServerId(s *service.Service, cfg aws.Config, userPoolName string
 
 		result, err := cognitoSvc.ListResourceServers(context.TODO(), input)
 		if err != nil {
-			return "", "", fmt.Errorf("failed to list user pool resource servers:", err)
+			return "", "", fmt.Errorf("failed to list user pool resource servers: %v", err)
 		}
 
 		// Check if any user pools are present
@@ -395,4 +396,19 @@ func getResourceServerId(s *service.Service, cfg aws.Config, userPoolName string
 		}
 	}
 	return "", "", fmt.Errorf("resource Server not found")
+}
+
+func CheckIfAWS(s *service.Service, ctx context.Context) (bool, error) {
+	s.Logger.Info("Checking if cloud provider is AWS")
+	req, err := http.NewRequestWithContext(ctx, "GET", METADATA_URL, nil)
+	if err != nil {
+		return false, fmt.Errorf("Error creating request to check if cloud provider is AWS: %v", err)
+	}
+	resp, err := s.Client.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("Error checking if cloud provider is AWS: %v", err)
+	}
+	defer resp.Body.Close()
+	s.Logger.Info(fmt.Sprintf("AWS metadata server response status code: %d", resp.StatusCode))
+	return (resp.StatusCode == http.StatusOK), nil
 }

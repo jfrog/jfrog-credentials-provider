@@ -55,6 +55,6 @@ jobs:
           draft: false
           prerelease: true
           files: |
-            build/bin/jfrog-credential-provider-aws-linux-amd64
-            build/bin/jfrog-credential-provider-aws-linux-arm64
+            build/bin/jfrog-credential-provider-linux-amd64
+            build/bin/jfrog-credential-provider-linux-arm64
           fail_on_unmatched_files: true 
