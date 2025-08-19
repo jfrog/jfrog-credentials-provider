@@ -184,7 +184,7 @@ func downloadLatestBinary(ctx context.Context, logs *logger.Logger, client *http
 		logs.Info("Release tag '%s' is missing 'v' prefix. Prepending 'v'." + newVersion)
 		newVersion = strings.TrimPrefix(newVersion, "v")
 	}
-	downloadUrl := jfrogPluginDownloadUrl + downloadSuffix + newVersion + "/jfrog-credential-provider-aws-linux-" + getArchSuffix(logs)
+	downloadUrl := jfrogPluginDownloadUrl + downloadSuffix + newVersion + "/jfrog-credential-provider-linux-" + getArchSuffix(logs)
 	logs.Info("Downloading new binary from: " + downloadUrl)
 	downloadSignUrl := downloadUrl + ".asc"
 	err := downloadReleaseArtifacts(ctx, logs, client, newBinaryPath, downloadUrl)

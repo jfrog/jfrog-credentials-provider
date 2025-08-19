@@ -74,6 +74,41 @@ func ExchangeOidcArtifactoryToken(s *service.Service, ctx context.Context,
 	}
 
 	resp, err := utils.HttpReq(s, ctx, url, body, nil)
+	if err != nil {
+		return "", "", fmt.Errorf("error calling oidc token api: %v", err)
+	}
+	myResponse := &OidcAccessResponse{}
+	err = json.NewDecoder(resp.Body).Decode(myResponse)
+	if err != nil {
+		return "", "", fmt.Errorf("error reading artifactory response")
+	}
+	resp.Body.Close()
+	return myResponse.Username, myResponse.AccessToken, nil
+}
+
+// ExchangeAzureOidcArtifactoryToken exchanges Azure OIDC token with JFrog Artifactory token
+func ExchangeAzureOidcArtifactoryToken(s *service.Service, ctx context.Context,
+	token string, artifactoryUrl string, providerName string, clientId string) (string, string, error) {
+	url := fmt.Sprintf("%s%s%s", "https://", artifactoryUrl, OIDC_ENDPOINT)
+	s.Logger.Info("RT azure oidc token url :" + url)
+
+	requestData := OidcTokenRequest{
+		GrantType:        "urn:ietf:params:oauth:grant-type:token-exchange",
+		ProviderName:     providerName,
+		SubjectTokenType: "urn:ietf:params:oauth:token-type:id_token",
+		SubjectToken:     token,
+		ProviderType:     "oidc-azure",
+		Audience:         clientId,
+	}
+	body, err := json.Marshal(requestData)
+	if err != nil {
+		return "", "", fmt.Errorf("error marshaling request: %v", err)
+	}
+
+	resp, err := utils.HttpReq(s, ctx, url, body, nil)
+	if err != nil {
+		return "", "", fmt.Errorf("error calling oidc token api: %v", err)
+	}
 	myResponse := &OidcAccessResponse{}
 	err = json.NewDecoder(resp.Body).Decode(myResponse)
 	if err != nil {
