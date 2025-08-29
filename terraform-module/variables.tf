@@ -1,10 +1,18 @@
+# Azure only supports the DaemonSet installation method
+variable "cloud_provider" {
+  description = "Cloud provider to use for the JFrog Credential Provider."
+  type        = string
+  default     = "aws"
+}
+
+# AWS Only
 variable "create_eks_node_groups" {
   description = "Flag to create EKS node groups."
   type        = bool
   default     = true
 }
 
-
+# AWS Only
 # A NG will be created for each entry in this list
 variable "eks_node_group_configuration" {
   description = "Configuration for EKS node groups"
@@ -34,6 +42,7 @@ variable "eks_node_group_configuration" {
   default = null
 }
 
+# AWS Only
 variable generate_aws_cli_command {
   description = "Flag to generate AWS CLI command for the Launch Template with the JFrog Kubelet Credential Plugin configuration."
   type        = bool
@@ -63,6 +72,7 @@ variable "kubernetes_auth_object" {
   default     = {}
 }
 
+# Applicable for AWS and Azure
 variable jfrog_credential_plugin_daemonset_installation {
   description = "Use DaemonSet installation to install for the JFrog Credential Plugin in Node groups"
   type        = bool
@@ -93,6 +103,8 @@ variable "kubeconfig_path" {
     type        = string
     default     = ""
 }
+
+# TODO
 # Common variables for JFrog Credential Provider
 variable "region" {
   default = "eu-central-1"
@@ -116,8 +128,9 @@ variable "artifactory_user" {
     type        = string
 }
 
-# Set the authentication method to use for the JFrog Artifactory
-# Supported values are "cognito_oidc" or "assume_role"
+# Applicable for AWS only
+# Set the authentication method to use for the JFrog Artifactory in AWS
+# Supported values are "cognito_oidc" or "assume_role" 
 variable "authentication_method" {
     description = "The authentication method to use for JFrog Artifactory. Supported values are 'cognito_oidc' or 'assume_role'."
     type        = string
@@ -129,6 +142,7 @@ variable "authentication_method" {
     }
 }
 
+## Applicable for AWS and Azure
 ## Following variables are used for the OIDC authentication method
 ## It is expected that the AWS Cognito User Pool and Resource Server are already created
 ## and the necessary permissions are granted to the JFrog Credential Provider IAM Role (worker role)
@@ -137,6 +151,25 @@ variable "jfrog_oidc_provider_name" {
     default = "jfrog-aws-oidc-provider"
 }
 
+# AWS ENVs for the JFrog Credential Provider
+variable "aws_envs" {
+  description = "Environment variables for the AWS Credential Provider."
+  type = object({
+    # AWS Cognito User Pool Secret Name
+    aws_cognito_user_pool_secret_name = string
+    # AWS Cognito User Pool Name
+    aws_cognito_user_pool_name = string
+    # AWS Cognito User Pool ID
+    aws_cognito_user_pool_id = string
+    # AWS Cognito User Pool Client ID
+    aws_cognito_user_pool_client_id = string
+    # AWS Cognito User Pool Domain Name
+    aws_cognito_user_pool_domain_name = string
+    # AWS Cognito Resource Server Name
+    aws_cognito_resource_server_name = string
+  })
+  default = null
+}
 # Must contain client ID and secret for aws cognito user pool
 # {"client-secret":"__CLIENT_SECRET__",}",
 # "client-id":"__CLIENT_ID__"}
@@ -220,4 +253,19 @@ check "cognito_oidc_requires_cognito_variables" {
     )
     error_message = "If authentication_method is 'cognito_oidc', then 'jfrog_oidc_provider_name', 'aws_cognito_user_pool_secret_name', 'aws_cognito_user_pool_name', 'aws_cognito_user_pool_id', 'aws_cognito_user_pool_domain_name', 'aws_cognito_resource_server_name' must be provided and be non-empty strings."
   }
+}
+
+variable "azure_envs" {
+  description = "Environment variables for the Azure Credential Provider."
+  type = object({
+    # Azure registered application client id
+    azure_app_client_id = string
+    # Azure Tenant ID
+    azure_tenant_id = string
+    # Azure App Audience
+    azure_app_audience = string
+    # Azure Nodepool Client ID
+    azure_nodepool_client_id = string
+  })
+  default = null
 }

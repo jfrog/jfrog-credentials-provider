@@ -2,6 +2,7 @@
 
 # This script will download the jfrog-credential-provider and setup the needed configuration.
 
+
 log () {
     echo "[$(date +"%Y-%m-%d %H:%M:%S")] $1"
 }
@@ -40,9 +41,9 @@ else
     echo "Making the jfrog-credential-provider binary executable"
     chmod +x ${IMAGE_CREDENTIAL_PROVIDER_DIR}/jfrog-credential-provider
 
-    echo "Copying the /etc/jfrog-provider.json configuration file to ${IMAGE_CREDENTIAL_PROVIDER_DIR}/jfrog-provider.json"
-    cp -f /etc/jfrog-provider.json ${IMAGE_CREDENTIAL_PROVIDER_DIR}/jfrog-provider.json
-    cat ${IMAGE_CREDENTIAL_PROVIDER_DIR}/jfrog-provider.json
+    echo "Copying the /etc/${IMAGE_CREDENTIAL_PROVIDER_FILE_NAME} configuration file to ${IMAGE_CREDENTIAL_PROVIDER_DIR}/${IMAGE_CREDENTIAL_PROVIDER_FILE_NAME}"
+    cp -f /etc/${IMAGE_CREDENTIAL_PROVIDER_FILE_NAME} ${IMAGE_CREDENTIAL_PROVIDER_DIR}/${IMAGE_CREDENTIAL_PROVIDER_FILE_NAME}
+    cat ${IMAGE_CREDENTIAL_PROVIDER_DIR}/${IMAGE_CREDENTIAL_PROVIDER_FILE_NAME}
     sleep 2 | # Wait a bit to ensure the file is copied before proceeding
 
     # Update the kubelet configuration to use the jfrog-credential-provider

@@ -1,5 +1,5 @@
 resource "local_file" "pre_bootstrap_user_data" {
-    count = var.generate_aws_cli_command ? 1 : 0
+    count = var.cloud_provider == "aws" && var.generate_aws_cli_command ? 1 : 0
     content  = <<-EOF
         Content-Type: multipart/mixed; boundary="//"
         MIME-Version: 1.0
@@ -20,7 +20,7 @@ resource "local_file" "pre_bootstrap_user_data" {
     filename = "${path.module}/pre_bootstrap_user_data.sh"
 }
 resource "local_file" "launch_template_data_json_file" {
-    count = var.generate_aws_cli_command ? 1 : 0
+    count = var.cloud_provider == "aws" && var.generate_aws_cli_command ? 1 : 0
     content = jsonencode({
         UserData = base64encode(local_file.pre_bootstrap_user_data[0].content)
     }) 
@@ -29,7 +29,7 @@ resource "local_file" "launch_template_data_json_file" {
 
 output "create_launch_template_aws_cli_command" {
     description = "AWS CLI command to create an EC2 Launch Template using a generated JSON file for launch template data."
-    value = var.generate_aws_cli_command ? (<<CMD
+    value = var.generate_aws_cli_command && var.cloud_provider == "aws" ? (<<CMD
 aws ec2 create-launch-template \
 --launch-template-name "JfrogKubeletCredentialPluginNodeLT" \
 --version-description "Initial version for kubelet plugin nodes" \
