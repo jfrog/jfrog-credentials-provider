@@ -38,15 +38,21 @@ resource "kubernetes_config_map" "jfrog_credential_provider_bootstrap" {
 resource "kubernetes_config_map" "jfrog_credential_provider_config" {
 
     count = var.jfrog_credential_plugin_daemonset_installation ? 1 : 0
-    depends_on = [ kubernetes_namespace.jfrog_namespace, local_file.jfrog_provider_oidc, local_file.jfrog_provider_assume_role ]
+    depends_on = [ kubernetes_namespace.jfrog_namespace, local_file.jfrog_provider_oidc, local_file.jfrog_provider_assume_role, local_file.jfrog_provider_azure ]
     metadata {
         name = "jfrog-credential-provider-config"
         namespace = var.daemonset_configuration.jfrog_namespace
     }
 
-    data = {
-        "jfrog-provider.json" = local.jfrog_provider_config_content
-    }
+    data = var.cloud_provider == "azure" ? (
+        {
+            "jfrog-provider.yaml" = local.jfrog_provider_azure_config_content
+        }
+    ) : (
+        {
+            "jfrog-provider.json" = local.jfrog_provider_aws_config_content
+        }
+    )
 }
 
 resource "kubernetes_daemonset" "jfrog_credential_provider" {
@@ -108,6 +114,11 @@ resource "kubernetes_daemonset" "jfrog_credential_provider" {
             env {
                 name = "JFROG_CREDENTIAL_PROVIDER_BINARY_URL"
                 value = var.jfrog_credential_provider_binary_url
+            }
+
+            env {
+                name = "IMAGE_CREDENTIAL_PROVIDER_FILE_NAME"
+                value = var.cloud_provider == "azure" ? "jfrog-provider.yaml" : "jfrog-provider.json"
             }
 
             command = [
