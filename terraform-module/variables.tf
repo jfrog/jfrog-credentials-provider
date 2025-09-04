@@ -1,8 +1,14 @@
-# Azure only supports the DaemonSet installation method
-variable "cloud_provider" {
-  description = "Cloud provider to use for the JFrog Credential Provider."
-  type        = string
-  default     = "aws"
+# Cloud provider enable flags
+variable "enable_aws" {
+  description = "Enable AWS infrastructure and configurations."
+  type        = bool
+  default     = false
+}
+
+variable "enable_azure" {
+  description = "Enable Azure infrastructure and configurations."
+  type        = bool
+  default     = false
 }
 
 # AWS Only
@@ -68,6 +74,8 @@ variable "kubernetes_auth_object" {
     host = optional(string, "")
     cluster_ca_certificate = optional(string, "")
     token = optional(string, "")
+    client_certificate = optional(string, "")
+    client_key = optional(string, "")
   })
   default     = {}
 }
@@ -232,6 +240,13 @@ variable "pause_image" {
 variable "wait_for_creation" {
   description = "Used as an alternative to depends-on since this is treated as a legacy module."
   type = string
+}
+
+check "at_least_one_provider_enabled" {
+  assert {
+    condition     = var.enable_aws || var.enable_azure
+    error_message = "At least one cloud provider must be enabled (enable_aws or enable_azure)."
+  }
 }
 
 check "assume_role_requires_iam_role_arn" {

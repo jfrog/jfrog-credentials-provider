@@ -1,13 +1,13 @@
 locals {
-   oidc_config = var.cloud_provider == "azure" ? {
-    issuer_url = "https://sts.windows.net/${var.azure_envs.azure_tenant_id}/" 
+   oidc_config = var.enable_azure ? {
+    issuer_url = "https://login.microsoftonline.com/${var.azure_envs.azure_tenant_id}/v2.0" 
     provider_type = "Azure"
-    token_issuer = "https://sts.windows.net/${var.azure_envs.azure_tenant_id}/"
+    token_issuer = "https://login.microsoftonline.com/${var.azure_envs.azure_tenant_id}/v2.0"
     claims = {
       aud = var.azure_envs.azure_app_client_id
-      iss = "https://sts.windows.net/${var.azure_envs.azure_tenant_id}/"
+      iss = "https://login.microsoftonline.com/${var.azure_envs.azure_tenant_id}/v2.0"
     }
-   } : var.cloud_provider == "aws" && var.authentication_method == "cognito_oidc"? {
+   } : var.enable_aws && var.authentication_method == "cognito_oidc"? {
     issuer_url = "https://cognito-idp.${var.region}.amazonaws.com/${var.aws_cognito_user_pool_id}/"
     provider_type = "Generic OpenID Connect"
     token_issuer = "https://cognito-idp.${var.region}.amazonaws.com/${var.aws_cognito_user_pool_id}/"
@@ -15,17 +15,23 @@ locals {
       client_id = var.aws_cognito_user_pool_client_id
       iss = "https://cognito-idp.${var.region}.amazonaws.com/${var.aws_cognito_user_pool_id}"
     }
-   } : {}
+   } : {
+    issuer_url = ""
+    provider_type = ""
+    token_issuer = ""
+    claims = {}
+   }
 }
 
 resource "null_resource" "configure_artifactory_oidc" {
+  count = var.enable_aws || var.enable_azure ? 1 : 0
   triggers = {
     artifactory_url                             = var.artifactory_url
     jfrog_oidc_provider_name                    = var.jfrog_oidc_provider_name
     artifactory_user                            = var.artifactory_user
-    artifactory_aws_iam_role_arn                = var.cloud_provider == "aws" ? var.iam_role_arn : ""
-    authentication_method                       = var.cloud_provider == "aws" ? var.authentication_method : ""
-    cloud_provider                              = var.cloud_provider
+    artifactory_aws_iam_role_arn                = var.enable_aws ? var.iam_role_arn : ""
+    authentication_method                       = var.enable_aws ? var.authentication_method : ""
+    cloud_provider                              = var.enable_aws ? "aws" : var.enable_azure ? "azure" : "none"
 
     # oidc config
     issuer_url = local.oidc_config.issuer_url

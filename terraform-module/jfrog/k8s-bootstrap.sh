@@ -9,8 +9,9 @@ log () {
 
 log "Startup of the JFrog Credential Plugin injector"
 
-export IMAGE_CREDENTIAL_PROVIDER_DIR=/host/etc/eks/image-credential-provider
-export IMAGE_CREDENTIAL_PROVIDER_CONFIG=/host/etc/eks/image-credential-provider/config.json
+export IMAGE_CREDENTIAL_PROVIDER_DIR=__IMAGE_CREDENTIAL_PROVIDER_DIR__
+export IMAGE_CREDENTIAL_PROVIDER_CONFIG=__IMAGE_CREDENTIAL_PROVIDER_CONFIG__
+export IMAGE_CREDENTIAL_PROVIDER_FILE_NAME=__IMAGE_CREDENTIAL_PROVIDER_FILE_NAME__
 
 log "The content of the current ${IMAGE_CREDENTIAL_PROVIDER_CONFIG}:"
 cat ${IMAGE_CREDENTIAL_PROVIDER_CONFIG}
@@ -41,14 +42,23 @@ else
     echo "Making the jfrog-credential-provider binary executable"
     chmod +x ${IMAGE_CREDENTIAL_PROVIDER_DIR}/jfrog-credential-provider
 
-    echo "Copying the /etc/${IMAGE_CREDENTIAL_PROVIDER_FILE_NAME} configuration file to ${IMAGE_CREDENTIAL_PROVIDER_DIR}/${IMAGE_CREDENTIAL_PROVIDER_FILE_NAME}"
-    cp -f /etc/${IMAGE_CREDENTIAL_PROVIDER_FILE_NAME} ${IMAGE_CREDENTIAL_PROVIDER_DIR}/${IMAGE_CREDENTIAL_PROVIDER_FILE_NAME}
-    cat ${IMAGE_CREDENTIAL_PROVIDER_DIR}/${IMAGE_CREDENTIAL_PROVIDER_FILE_NAME}
+    KUBELET_CONFIG_DIR=$(dirname ${IMAGE_CREDENTIAL_PROVIDER_CONFIG})
+    KUBELET_CONFIG_FILE_NAME=$(basename ${IMAGE_CREDENTIAL_PROVIDER_FILE_NAME})
+
+    echo "Copying the /etc/${IMAGE_CREDENTIAL_PROVIDER_FILE_NAME} configuration file to ${KUBELET_CONFIG_DIR}/${IMAGE_CREDENTIAL_PROVIDER_FILE_NAME}"
+    cp -f /etc/${IMAGE_CREDENTIAL_PROVIDER_FILE_NAME} ${KUBELET_CONFIG_DIR}/${IMAGE_CREDENTIAL_PROVIDER_FILE_NAME}
+    cat ${KUBELET_CONFIG_DIR}/${IMAGE_CREDENTIAL_PROVIDER_FILE_NAME}
     sleep 2 | # Wait a bit to ensure the file is copied before proceeding
+
+    # if extension is yaml, set --yaml flag
+    if [[ ${KUBELET_CONFIG_FILE_NAME} == *.yaml ]]; then
+        nsenter -t 1 -m -p -- __IMAGE_CREDENTIAL_BINARY_PATH__ add-provider-config --yaml --provider-home "${KUBELET_CONFIG_DIR}" --provider-config "${KUBELET_CONFIG_FILE_NAME}"
+    else
+        nsenter -t 1 -m -p -- __IMAGE_CREDENTIAL_BINARY_PATH__ add-provider-config --provider-home "${KUBELET_CONFIG_DIR}" --provider-config "${KUBELET_CONFIG_FILE_NAME}"
+    fi
 
     # Update the kubelet configuration to use the jfrog-credential-provider
     echo "Updating the kubelet configuration to use the jfrog-credential-provider"
-    nsenter -t 1 -m -p -- /etc/eks/image-credential-provider/jfrog-credential-provider add-provider-config
     if [[ $? -ne 0 ]]; then
         echo "Updating the kubelet configuration failed"
         exit 1
