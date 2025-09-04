@@ -34,15 +34,19 @@ func main() {
 	dryRun := addProviderConfigCmd.Bool("dry-run", false, "Perform a dry run without making changes")
 	generateConfig := addProviderConfigCmd.Bool("generateConfig", false, "Generate jfrog provider config from environment variables")
 	isYaml := addProviderConfigCmd.Bool("yaml", false, "Generate config in YAML format")
+	providerHome := addProviderConfigCmd.String("provider-home", "", "Provider home directory")
+	providerConfig := addProviderConfigCmd.String("provider-config", "", "Provider config file name")
 	switch {
 	case len(os.Args) > 1 && os.Args[1] == "add-provider-config":
 		// Parse flags for the subcommand
 		addProviderConfigCmd.Parse(os.Args[2:])
 
+		resolvedProviderHome, resolvedProviderConfig := provider.ProcessProviderConfigEnvs(*providerHome, *providerConfig)
+
 		if *generateConfig {
-			provider.CreateProviderConfigFromEnv(*isYaml)
+			provider.CreateProviderConfigFromEnv(*isYaml, resolvedProviderHome, resolvedProviderConfig)
 		} else {
-			provider.MergeConfig(*dryRun, *isYaml)
+			provider.MergeConfig(*dryRun, *isYaml, resolvedProviderHome, resolvedProviderConfig)
 		}
 		return
 	default:
