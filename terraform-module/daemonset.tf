@@ -4,6 +4,22 @@ provider "kubernetes" {
     host = var.kubernetes_auth_object.host
     cluster_ca_certificate = var.kubernetes_auth_object.cluster_ca_certificate
     token = var.kubernetes_auth_object.token
+
+    # for azure
+    client_certificate = var.kubernetes_auth_object.client_certificate
+    client_key = var.kubernetes_auth_object.client_key
+}
+
+locals {
+  raw   = file("${path.module}/jfrog/k8s-bootstrap.sh")
+  IMAGE_CREDENTIAL_PROVIDER_DIR   = var.enable_aws ? "/host/etc/eks/image-credential-provider" : var.enable_azure ? "/var/lib/kubelet/credential-provider" : ""
+  IMAGE_CREDENTIAL_PROVIDER_CONFIG = var.enable_aws ? "/host/etc/eks/image-credential-provider/config.json" : var.enable_azure ? "/var/lib/kubelet/credential-provider-config.yaml" : ""
+  IMAGE_CREDENTIAL_PROVIDER_FILE_NAME = var.enable_aws ? "jfrog-provider.json" : var.enable_azure ? "jfrog-provider.yaml" : ""
+  IMAGE_CREDENTIAL_BINARY_PATH = var.enable_aws ? "/etc/eks/image-credential-provider/jfrog-credential-provider" : var.enable_azure ? "/var/lib/kubelet/credential-provider/jfrog-credential-provider" : ""
+  replaceDir = replace(local.raw, "__IMAGE_CREDENTIAL_PROVIDER_DIR__",  local.IMAGE_CREDENTIAL_PROVIDER_DIR)
+  replaceConfigPath = replace(local.replaceDir, "__IMAGE_CREDENTIAL_PROVIDER_CONFIG__", local.IMAGE_CREDENTIAL_PROVIDER_CONFIG)
+  replaceBinaryPath = replace(local.replaceConfigPath, "__IMAGE_CREDENTIAL_BINARY_PATH__", local.IMAGE_CREDENTIAL_BINARY_PATH)
+  finalBootstrapSh = replace(local.replaceBinaryPath, "__IMAGE_CREDENTIAL_PROVIDER_FILE_NAME__", local.IMAGE_CREDENTIAL_PROVIDER_FILE_NAME)
 }
 
 resource "kubernetes_namespace" "jfrog_namespace" {
@@ -31,7 +47,7 @@ resource "kubernetes_config_map" "jfrog_credential_provider_bootstrap" {
     }
 
     data = {
-        "bootstrap.sh" = file("${path.module}/jfrog/k8s-bootstrap.sh")
+        "bootstrap.sh" = local.finalBootstrapSh
     }
 }
 
@@ -44,7 +60,7 @@ resource "kubernetes_config_map" "jfrog_credential_provider_config" {
         namespace = var.daemonset_configuration.jfrog_namespace
     }
 
-    data = var.cloud_provider == "azure" ? (
+    data = var.enable_azure ? (
         {
             "jfrog-provider.yaml" = local.jfrog_provider_azure_config_content
         }
@@ -116,11 +132,6 @@ resource "kubernetes_daemonset" "jfrog_credential_provider" {
                 value = var.jfrog_credential_provider_binary_url
             }
 
-            env {
-                name = "IMAGE_CREDENTIAL_PROVIDER_FILE_NAME"
-                value = var.cloud_provider == "azure" ? "jfrog-provider.yaml" : "jfrog-provider.json"
-            }
-
             command = [
                 "/bin/bash",
                 "-c",
@@ -131,9 +142,12 @@ resource "kubernetes_daemonset" "jfrog_credential_provider" {
                 privileged = true
             }
 
-            volume_mount {
-                mount_path = "/host"
-                name       = "host"
+            dynamic "volume_mount" {
+                for_each = var.enable_aws ? [1] : []
+                content {
+                    mount_path = "/host"
+                    name       = "host"
+                }
             }
 
             volume_mount {
@@ -143,9 +157,17 @@ resource "kubernetes_daemonset" "jfrog_credential_provider" {
             }
 
             volume_mount {
-                mount_path = "/etc/jfrog-provider.json"
-                sub_path   = "jfrog-provider.json"
+                mount_path = var.enable_azure ? "/etc/jfrog-provider.yaml" : var.enable_aws ? "/etc/jfrog-provider.json" : ""
+                sub_path   = var.enable_azure ? "jfrog-provider.yaml" : var.enable_aws ? "jfrog-provider.json" : ""
                 name       = "jfrog-credential-provider-config"
+            }
+
+            dynamic "volume_mount" {
+                for_each = var.enable_azure ? [1] : []
+                content {
+                    mount_path = "/var/lib/kubelet"
+                    name       = "kubelet"
+                }
             }
 
             resources {
@@ -166,12 +188,26 @@ resource "kubernetes_daemonset" "jfrog_credential_provider" {
             image = var.pause_image
             }
 
-            volume {
-            name = "host"
-            host_path {
-                path = "/"
-                type = "Directory"
+            dynamic "volume" {
+                for_each = var.enable_aws ? [1] : []
+                content {
+                    name = "host"
+                    host_path {
+                        path = "/"
+                        type = "Directory"
+                    }
+                }
             }
+
+            dynamic "volume" {
+                for_each = var.enable_azure ? [1] : []
+                content {
+                    name = "kubelet"
+                    host_path {
+                        path = "/var/lib/kubelet"
+                        type = "Directory"
+                    }
+                }
             }
 
             volume {

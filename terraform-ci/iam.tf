@@ -1,4 +1,5 @@
 resource "aws_iam_role" "eks_node_role" {
+  count = var.enable_aws ? 1 : 0
   name  = local.node_role_name
 
   assume_role_policy = jsonencode({
@@ -18,26 +19,31 @@ resource "aws_iam_role" "eks_node_role" {
 }
 
 resource "aws_iam_role_policy_attachment" "eks_node_AmazonEKSWorkerNodePolicy" {
-  role       = aws_iam_role.eks_node_role.name
+  count = var.enable_aws ? 1 : 0
+  role       = aws_iam_role.eks_node_role[0].name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
 }
 
 resource "aws_iam_role_policy_attachment" "eks_node_AmazonEC2ContainerRegistryReadOnly" {
-  role       = aws_iam_role.eks_node_role.name
+  count = var.enable_aws ? 1 : 0
+  role       = aws_iam_role.eks_node_role[0].name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 }
 
 resource "aws_iam_role_policy_attachment" "eks_node_AmazonEKS_CNI_Policy" {
-  role       = aws_iam_role.eks_node_role.name
+  count = var.enable_aws ? 1 : 0
+  role       = aws_iam_role.eks_node_role[0].name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
 }
 
 resource "aws_iam_role_policy_attachment" "eks_node_AmazonEBSCSIDriverPolicy" {
-  role       = aws_iam_role.eks_node_role.name
+  count = var.enable_aws ? 1 : 0
+  role       = aws_iam_role.eks_node_role[0].name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy"
 }
 
 resource "aws_iam_policy" "get_secret_value" {
+    count = var.enable_aws ? 1 : 0
     name        = "JFrogAllowGetSecretValuePolicy"
     description = "Allow EKS node to read the secret value"
 
@@ -50,7 +56,7 @@ resource "aws_iam_policy" "get_secret_value" {
                     "secretsmanager:GetSecretValue"
                 ],
                 "Resource": [
-                    aws_secretsmanager_secret_version.jfrog_oidc_integration_secret_version.arn
+                    aws_secretsmanager_secret_version.jfrog_oidc_integration_secret_version[0].arn
                 ]
             }
         ]
@@ -58,6 +64,7 @@ resource "aws_iam_policy" "get_secret_value" {
 }
 
 resource "aws_iam_policy" "get_user_pool" {
+    count = var.enable_aws ? 1 : 0
     name        = "JFrogAllowGetUserPoolPolicy"
     description = "Allow EKS node to read the user pool details"
 
@@ -80,7 +87,7 @@ resource "aws_iam_policy" "get_user_pool" {
                     "cognito-idp:DescribeUserPool"
                 ],
                 "Resource": [
-                    aws_cognito_user_pool.jfrog_cognito_user_pool.arn
+                    aws_cognito_user_pool.jfrog_cognito_user_pool[0].arn
                 ]
             }
         ]
@@ -88,11 +95,13 @@ resource "aws_iam_policy" "get_user_pool" {
 }
 
 resource "aws_iam_role_policy_attachment" "eks_node_JFrogAllowGetSecretValuePolicy" {
-  role       = aws_iam_role.eks_node_role.name
-  policy_arn = aws_iam_policy.get_secret_value.arn
+  count = var.enable_aws ? 1 : 0
+  role       = aws_iam_role.eks_node_role[0].name
+  policy_arn = aws_iam_policy.get_secret_value[0].arn
 }
 
 resource "aws_iam_role_policy_attachment" "eks_node_JFrogAllowGetUserPoolPolicy" {
-  role       = aws_iam_role.eks_node_role.name
-  policy_arn = aws_iam_policy.get_user_pool.arn
+  count = var.enable_aws ? 1 : 0
+  role       = aws_iam_role.eks_node_role[0].name
+  policy_arn = aws_iam_policy.get_user_pool[0].arn
 }

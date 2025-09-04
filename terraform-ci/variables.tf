@@ -171,3 +171,119 @@ variable node_security_group_ids {
   type        = list(string)
   default     = []
 }
+
+# Cloud Provider Enable Flags
+variable "enable_aws" {
+  description = "Enable AWS EKS infrastructure and testing"
+  type        = bool
+  default     = false
+}
+
+variable "enable_azure" {
+  description = "Enable Azure AKS infrastructure and testing"
+  type        = bool
+  default     = false
+}
+
+# Azure Variables
+variable "azure_subscription_id" {
+  description = "Azure subscription ID."
+  type        = string
+  default     = null
+}
+
+variable "azure_resource_group_name" {
+  description = "Name of the Azure resource group (must already exist)."
+  type        = string
+  default     = null
+}
+
+variable "azure_location" {
+  description = "Azure region/location for resources."
+  type        = string
+  default     = "East US"
+}
+
+variable "create_aks_cluster" {
+  description = "Set to true to create a new AKS cluster, false to use an existing one."
+  type        = bool
+  default     = false
+}
+
+variable "aks_cluster_name" {
+  description = "Name of the AKS cluster to create or use."
+  type        = string
+  default     = null
+}
+
+variable "azure_cluster_public_access_cidrs" {
+  description = "List of CIDR blocks to allow access to the AKS cluster's public endpoint."
+  type        = list(string)
+  default     = []
+}
+
+variable "azure_node_count" {
+  description = "Initial number of nodes for the AKS default node pool."
+  type        = number
+  default     = 1
+}
+
+variable "azure_node_vm_size" {
+  description = "VM size for AKS nodes."
+  type        = string
+  default     = "Standard_D2s_v3"
+}
+
+variable "azure_admin_username" {
+  description = "Admin username for AKS nodes."
+  type        = string
+  default     = "azureadmin"
+}
+
+# Azure AD / JFrog OIDC Configuration
+variable "azure_envs" {
+  description = "Azure environment variables for the JFrog Credential Provider."
+  type = object({
+    azure_app_client_id      = string
+    azure_tenant_id          = string
+    azure_app_audience       = string
+    azure_nodepool_client_id = string
+  })
+  default = null
+}
+
+# Validation checks
+check "at_least_one_provider_enabled" {
+  assert {
+    condition     = var.enable_aws || var.enable_azure
+    error_message = "At least one cloud provider must be enabled (enable_aws or enable_azure)."
+  }
+}
+
+check "azure_subscription_id_required" {
+  assert {
+    condition     = !var.enable_azure || (var.azure_subscription_id != null && var.azure_subscription_id != "")
+    error_message = "When enable_azure is true, azure_subscription_id must be provided."
+  }
+}
+
+check "azure_resource_group_required" {
+  assert {
+    condition     = !var.enable_azure || (var.azure_resource_group_name != null && var.azure_resource_group_name != "")
+    error_message = "When enable_azure is true, azure_resource_group_name must be provided."
+  }
+}
+
+check "aks_cluster_name_required" {
+  assert {
+    condition     = !var.enable_azure || !var.create_aks_cluster || (var.aks_cluster_name != null && var.aks_cluster_name != "")
+    error_message = "When enable_azure is true and create_aks_cluster is true, aks_cluster_name must be provided."
+  }
+}
+
+check "azure_envs_required" {
+  assert {
+    condition = !var.enable_azure || var.azure_envs != null
+    error_message = "When enable_azure is true, azure_envs must be provided with Azure AD configuration."
+  }
+}

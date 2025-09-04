@@ -1,5 +1,5 @@
 resource "local_file" "jfrog_provider_oidc" {
-    count = var.authentication_method == "cognito_oidc" && var.cloud_provider == "aws" ? 1 : 0
+    count = var.authentication_method == "cognito_oidc" && var.enable_aws ? 1 : 0
     content  = <<-EOT
         {
         "name": "jfrog-credential-provider",
@@ -57,7 +57,7 @@ resource "local_file" "jfrog_provider_oidc" {
 }
 
 resource "local_file" "jfrog_provider_assume_role"  {
-    count = var.authentication_method == "assume_role" && var.cloud_provider == "aws" ? 1 : 0
+    count = var.authentication_method == "assume_role" && var.enable_aws ? 1 : 0
     content = <<-EOT
     {
       "name": "jfrog-credential-provider",
@@ -91,33 +91,32 @@ resource "local_file" "jfrog_provider_assume_role"  {
 }
 
 resource "local_file" "jfrog_provider_azure" {
-    count = var.cloud_provider == "azure" ? 1 : 0
+    count = var.enable_azure ? 1 : 0
     content = <<-EOT
-    providers:
-    - name: jfrog-credential-provider
-      matchImages:
-        - "*.jfrog.io"
-      apiVersion: credentialprovider.kubelet.k8s.io/v1
-      defaultCacheDuration: "1h"
-      env:
-      - name: artifactory_url
-        value: "${var.artifactory_url}"
-      - name: azure_app_client_id
-        value: "${var.azure_envs.azure_app_client_id}"
-      - name: azure_tenant_id
-        value: "${var.azure_envs.azure_tenant_id}"
-      - name: azure_app_audience
-        value: "${var.azure_envs.azure_app_audience}"
-      - name: jfrog_oidc_provider_name
-        value: "${var.jfrog_oidc_provider_name}"
-      - name: azure_nodepool_client_id
-        value: "${var.azure_envs.azure_nodepool_client_id}"
+    name: jfrog-credential-provider
+    apiVersion: credentialprovider.kubelet.k8s.io/v1
+    matchImages:
+      - "*.jfrog.io"
+    defaultCacheDuration: "4h"
+    env:
+    - name: artifactory_url
+      value: "${var.artifactory_url}"
+    - name: azure_app_client_id
+      value: "${var.azure_envs.azure_app_client_id}"
+    - name: azure_tenant_id
+      value: "${var.azure_envs.azure_tenant_id}"
+    - name: azure_app_audience
+      value: "${var.azure_envs.azure_app_audience}"
+    - name: jfrog_oidc_provider_name
+      value: "${var.jfrog_oidc_provider_name}"
+    - name: azure_nodepool_client_id
+      value: "${var.azure_envs.azure_nodepool_client_id}"
     EOT
     filename = "${path.module}/jfrog/jfrog-provider.yaml"
 }
 
 locals {
-    jfrog_provider_aws_config_content = var.cloud_provider == "aws" ? (
+    jfrog_provider_aws_config_content = var.enable_aws ? (
       var.authentication_method == "cognito_oidc" ? (
         length(local_file.jfrog_provider_oidc) > 0 ? local_file.jfrog_provider_oidc[0].content : ""
     ) : (
@@ -127,13 +126,13 @@ locals {
     ) ) : ""
 
     # Azure only supports the DaemonSet installation method
-    jfrog_provider_azure_config_content = var.cloud_provider == "azure" ? (
+    jfrog_provider_azure_config_content = var.enable_azure ? (
         length(local_file.jfrog_provider_azure) > 0 ? local_file.jfrog_provider_azure[0].content : ""
     ) : ""
 }
 
 module "eks_managed_node_group" {
-    for_each = var.cloud_provider == "aws" ? (var.create_eks_node_groups ? { for ng in var.eks_node_group_configuration.node_groups : ng.name => ng } : {}) : {}
+    for_each = var.enable_aws ? (var.create_eks_node_groups ? { for ng in var.eks_node_group_configuration.node_groups : ng.name => ng } : {}) : {}
     source   = "terraform-aws-modules/eks/aws//modules/eks-managed-node-group"
     version  = "~> 21.0.0"
 
