@@ -101,34 +101,39 @@ func initializeLoggerAndParseRequest() (*logger.Logger, utils.CredentialProvider
 	return logs, request
 }
 
-func cloudProviderAuth(svc *service.Service, ctx context.Context, logs *logger.Logger, artifactoryUrl string, secretTTL string) (string, string) {
-	var rtUsername, rtToken string
-
+func getCloudProvider(svc *service.Service, ctx context.Context, logs *logger.Logger) string {
 	cloudProvider := utils.GetEnvs(logs, "cloud_provider", "")
 	logs.Info("cloud_provider from env:" + cloudProvider)
 	if cloudProvider == "" {
 		// if cloud_provider is not set, check if the cloud provider is AWS or Azure
 		isAWS, errAWS := handlers.CheckIfAWS(svc, ctx)
 		if isAWS {
-			cloudProvider = "aws"
+			cloudProvider = utils.CloudProviderAWS
 		}
 		isAzure, errAzure := handlers.CheckIfAzure(svc, ctx)
 		if isAzure {
-			cloudProvider = "azure"
+			cloudProvider = utils.CloudProviderAzure
 		}
 
 		if errAWS != nil && errAzure != nil {
 			logs.Exit("ERROR in JFrog Credentials provider, could not check if cloud provider is AWS or Azure", 1)
 		}
 	}
+	return cloudProvider
+}
+
+func cloudProviderAuth(svc *service.Service, ctx context.Context, logs *logger.Logger, artifactoryUrl string, secretTTL string) (string, string) {
+	var rtUsername, rtToken string
+
+	cloudProvider := getCloudProvider(svc, ctx, logs)
 
 	switch cloudProvider {
-	case "aws":
+	case utils.CloudProviderAWS:
 		logs.Debug("Detected AWS cloud provider")
 		awsAuthMethod, awsRoleName := validateAWSEnvVariables(logs)
 		rtUsername, rtToken = handleAWSAuth(svc, ctx, logs, awsAuthMethod, awsRoleName, artifactoryUrl, secretTTL)
 		return rtUsername, rtToken
-	case "azure":
+	case utils.CloudProviderAzure:
 		logs.Debug("Detected Azure cloud provider")
 		rtUsername, rtToken = handleAzureAuth(svc, ctx, logs, artifactoryUrl)
 		return rtUsername, rtToken

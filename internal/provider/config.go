@@ -15,12 +15,17 @@
 package provider
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	service "jfrog-credential-provider/internal"
 	"jfrog-credential-provider/internal/logger"
 	"jfrog-credential-provider/internal/utils"
 	"log"
+	"net/http"
 	"os"
+	"strings"
+	"time"
 )
 
 const (
@@ -42,7 +47,29 @@ type ProviderConfig struct {
 	Env                  []EnvVar `json:"env"`
 }
 
-func CreateProviderConfigFromEnv(isYaml bool) {
+func ProcessProviderConfigEnvs(providerHome string, providerConfigFileName string) (string, string) {
+	if providerConfigFileName == "" {
+		providerConfigFileName = finalConfigFile
+	}
+
+	if providerHome == "" {
+		providerHome = defaultProviderHome
+	}
+
+	// if providerConfigFileName contains extensions (.yaml, .yml, .json), remove them
+	providerConfigFileName = strings.TrimSuffix(providerConfigFileName, ".yaml")
+	providerConfigFileName = strings.TrimSuffix(providerConfigFileName, ".yml")
+	providerConfigFileName = strings.TrimSuffix(providerConfigFileName, ".json")
+
+	// if trailing slash is not present, add it
+	if !strings.HasSuffix(providerHome, "/") {
+		providerHome = providerHome + "/"
+	}
+
+	return providerHome, providerConfigFileName
+}
+
+func CreateProviderConfigFromEnv(isYaml bool, providerHome string, providerConfigFileName string) {
 	logs, err := logger.NewLogger()
 	if err != nil {
 		log.Fatalf("Failed to initialize logger: %v", err)
@@ -118,9 +145,9 @@ func CreateProviderConfigFromEnv(isYaml bool) {
 
 	var jfrogConfigFileName string
 	if isYaml {
-		jfrogConfigFileName = defaultProviderHome + jfrogConfigFile + ".yaml"
+		jfrogConfigFileName = providerHome + providerConfigFileName + ".yaml"
 	} else {
-		jfrogConfigFileName = defaultProviderHome + jfrogConfigFile + ".json"
+		jfrogConfigFileName = providerHome + providerConfigFileName + ".json"
 	}
 	// Write the JSON to the output file
 	if err := os.WriteFile(jfrogConfigFileName, data, 0644); err != nil {
@@ -131,20 +158,32 @@ func CreateProviderConfigFromEnv(isYaml bool) {
 
 }
 
-func MergeConfig(dryRun, isYaml bool) {
+func MergeConfig(dryRun, isYaml bool, providerHome string, providerConfigFileName string) {
 	logs, err := logger.NewLogger()
 	if err != nil {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}
 	var jfrogConfigFileName, finalConfigFileName string
 	if isYaml {
-		jfrogConfigFileName = defaultProviderHome + jfrogConfigFile + ".yaml"
-		finalConfigFileName = defaultProviderHome + finalConfigFile + ".yaml"
+		jfrogConfigFileName = providerHome + jfrogConfigFile + ".yaml"
+		finalConfigFileName = providerHome + providerConfigFileName + ".yaml"
 	} else {
-		jfrogConfigFileName = defaultProviderHome + jfrogConfigFile + ".json"
-		finalConfigFileName = defaultProviderHome + finalConfigFile + ".json"
+		jfrogConfigFileName = providerHome + jfrogConfigFile + ".json"
+		finalConfigFileName = providerHome + providerConfigFileName + ".json"
 	}
-	err = utils.MergeFiles(finalConfigFileName, jfrogConfigFileName, finalConfigFileName, isYaml, dryRun, logs)
+	client := &http.Client{
+		Timeout: 60 * time.Second,
+		Transport: &http.Transport{
+			MaxIdleConns:       100,
+			IdleConnTimeout:    10 * time.Second,
+			DisableCompression: true,
+		},
+	}
+	svc := service.NewService(client, *logs)
+	ctx := context.Background()
+	cloudProvider := getCloudProvider(svc, ctx, logs)
+
+	err = utils.MergeFiles(finalConfigFileName, jfrogConfigFileName, finalConfigFileName, isYaml, dryRun, logs, cloudProvider)
 	if err != nil {
 		logs.Exit(err, 1)
 	}

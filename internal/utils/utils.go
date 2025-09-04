@@ -24,6 +24,11 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const (
+	CloudProviderAWS   = "aws"
+	CloudProviderAzure = "azure"
+)
+
 // CredentialProviderRequest is the request sent by the kubelet.
 type CredentialProviderRequest struct {
 	ApiVersion string `json:"apiVersion"`
@@ -111,7 +116,7 @@ func GetCurrentBinaryPath(logs *logger.Logger) string {
 	return currentBinaryPath
 }
 
-func ReadFile(filePath string, isYaml bool, v interface{}) error {
+func ReadFile(filePath string, isYaml bool, v interface{}, cloudProvider string) error {
 	// Read the file
 	data, err := os.ReadFile(filePath)
 	if err != nil {
@@ -119,6 +124,7 @@ func ReadFile(filePath string, isYaml bool, v interface{}) error {
 	}
 
 	// Parse the file based on the format
+	fmt.Println("isYaml Boolean: " + strconv.FormatBool(isYaml))
 	if isYaml {
 		if err := yaml.Unmarshal(data, v); err != nil {
 			return fmt.Errorf("failed to parse YAML file %s: %w", filePath, err)
@@ -134,7 +140,7 @@ func ReadFile(filePath string, isYaml bool, v interface{}) error {
 			return fmt.Errorf("validation failed for file %s: %w", filePath, err)
 		}
 	} else if provider, ok := v.(*Provider); ok {
-		if err := ValidateJfrogProviderConfig(*provider); err != nil {
+		if err := ValidateJfrogProviderConfig(*provider, cloudProvider); err != nil {
 			return fmt.Errorf("validation failed for file %s: %w", filePath, err)
 		}
 	} else {
@@ -144,17 +150,19 @@ func ReadFile(filePath string, isYaml bool, v interface{}) error {
 	return nil
 }
 
-func MergeFiles(file1, file2, outputFile string, isYaml, dryRun bool, logs *logger.Logger) error {
+func MergeFiles(file1, file2, outputFile string, isYaml, dryRun bool, logs *logger.Logger, cloudProvider string) error {
 	// Read and parse the first file
 
 	var config CredentialProviderConfig
-	if err := ReadFile(file1, isYaml, &config); err != nil {
+
+	// cloudProvider is being passed to be used by the validateJfrogProviderConfig function
+	if err := ReadFile(file1, isYaml, &config, cloudProvider); err != nil {
 		return err
 	}
 
 	// Read and parse the second file
 	var provider Provider
-	if err := ReadFile(file2, isYaml, &provider); err != nil {
+	if err := ReadFile(file2, isYaml, &provider, cloudProvider); err != nil {
 		return err
 	}
 
@@ -211,7 +219,13 @@ func ValidateProviderConfig(config []Provider) error {
 	return nil
 }
 
-func ValidateJfrogProviderConfig(config Provider) error {
+func ValidateJfrogProviderConfig(config Provider, cloudProvider string) error {
+
+	fmt.Println("Validating JFrog provider config for cloud provider: " + cloudProvider)
+	fmt.Println("Config: " + fmt.Sprintf("%+v", config))
+	fmt.Println("Name: " + config.Name)
+	fmt.Println("MatchImages: " + fmt.Sprintf("%+v", config.MatchImages))
+	fmt.Println("DefaultCacheDuration: " + config.DefaultCacheDuration)
 
 	if config.Name == "" || len(config.MatchImages) == 0 || config.DefaultCacheDuration == "" {
 		return fmt.Errorf("missing required fields in provider : name, matchImages, or defaultCacheDuration ]")
@@ -221,18 +235,26 @@ func ValidateJfrogProviderConfig(config Provider) error {
 		return fmt.Errorf("missing required fields in provider: artifactory_url")
 	}
 
-	if GetEnvVarValue(config.Env, "aws_role_name") == "" {
-		return fmt.Errorf("missing required fields in provider: aws_role_name")
-	}
+	switch cloudProvider {
+	case CloudProviderAWS:
+		if GetEnvVarValue(config.Env, "aws_role_name") == "" {
+			return fmt.Errorf("missing required fields in provider: aws_role_name")
+		}
 
-	awsAuthMethod := GetEnvVarValue(config.Env, "aws_auth_method")
-	if awsAuthMethod != "cognito_oidc" && awsAuthMethod != "assume_role" {
-		return fmt.Errorf("aws_auth_method can only be set as cognito_oidc or assume_role however the current value is :" + awsAuthMethod)
-	}
+		awsAuthMethod := GetEnvVarValue(config.Env, "aws_auth_method")
+		if awsAuthMethod != "cognito_oidc" && awsAuthMethod != "assume_role" {
+			return fmt.Errorf("aws_auth_method can only be set as cognito_oidc or assume_role however the current value is :" + awsAuthMethod)
+		}
 
-	if awsAuthMethod == "cognito_oidc" {
-		if GetEnvVarValue(config.Env, "jfrog_oidc_provider_name") == "" || GetEnvVarValue(config.Env, "secret_name") == "" || GetEnvVarValue(config.Env, "user_pool_name") == "" || GetEnvVarValue(config.Env, "resource_server_name") == "" || GetEnvVarValue(config.Env, "user_pool_resource_scope") == "" {
-			return fmt.Errorf("aws_auth_method as cognito_oidc has one or more missing environment variables: jfrog_oidc_provider_name, secret_name, userPoolResourceDomain, userPoolResourceScope")
+		if awsAuthMethod == "cognito_oidc" {
+			if GetEnvVarValue(config.Env, "jfrog_oidc_provider_name") == "" || GetEnvVarValue(config.Env, "secret_name") == "" || GetEnvVarValue(config.Env, "user_pool_name") == "" || GetEnvVarValue(config.Env, "resource_server_name") == "" || GetEnvVarValue(config.Env, "user_pool_resource_scope") == "" {
+				return fmt.Errorf("aws_auth_method as cognito_oidc has one or more missing environment variables: jfrog_oidc_provider_name, secret_name, userPoolResourceDomain, userPoolResourceScope")
+			}
+		}
+
+	case CloudProviderAzure:
+		if GetEnvVarValue(config.Env, "azure_app_client_id") == "" || GetEnvVarValue(config.Env, "azure_tenant_id") == "" || GetEnvVarValue(config.Env, "azure_app_audience") == "" || GetEnvVarValue(config.Env, "azure_nodepool_client_id") == "" || GetEnvVarValue(config.Env, "jfrog_oidc_provider_name") == "" {
+			return fmt.Errorf("ERROR in JFrog Credentials provider, environment variables missing: azure_app_client_id, azure_tenant_id, azure_app_audience, azure_nodepool_client_id, jfrog_oidc_provider_name")
 		}
 	}
 	return nil
