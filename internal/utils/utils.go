@@ -124,7 +124,6 @@ func ReadFile(filePath string, isYaml bool, v interface{}, cloudProvider string)
 	}
 
 	// Parse the file based on the format
-	fmt.Println("isYaml Boolean: " + strconv.FormatBool(isYaml))
 	if isYaml {
 		if err := yaml.Unmarshal(data, v); err != nil {
 			return fmt.Errorf("failed to parse YAML file %s: %w", filePath, err)
@@ -220,12 +219,6 @@ func ValidateProviderConfig(config []Provider) error {
 }
 
 func ValidateJfrogProviderConfig(config Provider, cloudProvider string) error {
-
-	fmt.Println("Validating JFrog provider config for cloud provider: " + cloudProvider)
-	fmt.Println("Config: " + fmt.Sprintf("%+v", config))
-	fmt.Println("Name: " + config.Name)
-	fmt.Println("MatchImages: " + fmt.Sprintf("%+v", config.MatchImages))
-	fmt.Println("DefaultCacheDuration: " + config.DefaultCacheDuration)
 
 	if config.Name == "" || len(config.MatchImages) == 0 || config.DefaultCacheDuration == "" {
 		return fmt.Errorf("missing required fields in provider : name, matchImages, or defaultCacheDuration ]")
