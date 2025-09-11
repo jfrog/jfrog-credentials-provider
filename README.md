@@ -4,9 +4,9 @@ This project is currently in its beta phase, meaning it's still under active dev
 
 # JFrog Kubelet Credential Provider
 
-A [Kubernetes kubelet credential provider](https://kubernetes.io/docs/tasks/administer-cluster/kubelet-credential-provider/) **for Amazon EKS** that enables seamless authentication with JFrog Artifactory for container image pulls in Amazon EKS, eliminating the need for manual image pull secret management.
+A [Kubernetes kubelet credential provider](https://kubernetes.io/docs/tasks/administer-cluster/kubelet-credential-provider/) **for Amazon EKS and Azure AKS** that enables seamless authentication with JFrog Artifactory for container image pulls, eliminating the need for manual image pull secret management.
 
-> **Coming Soon**: Azure AKS and Google Cloud GKE support are currently in development.
+> **Coming Soon**: Google Cloud GKE support is currently in development.
 
 ## Overview
 
@@ -22,7 +22,7 @@ The JFrog Kubelet Credential Provider leverages the native Kubernetes kubelet Cr
 1. A pod is created with an image stored in JFrog Artifactory
 2. Kubelet identifies the image URL matches the configured pattern for the JFrog Kubelet Credential Provider
 3. Kubelet invokes the JFrog Kubelet Credential Provider binary
-4. The provider authenticates with AWS (using IAM roles or OIDC) and exchanges credentials with Artifactory
+4. The provider authenticates with the cloud provider (AWS IAM roles/OIDC or Azure managed identities) and exchanges credentials with Artifactory
 5. Valid registry credentials are returned to kubelet for the image pull
 
 ## Quick Start
@@ -51,18 +51,26 @@ See the [terraform-module](./terraform-module) directory for detailed deployment
 
 ## Authentication Methods
 
+### AWS Authentication
 - **AWS IAM Role Assumption**: Uses EC2 instance [IAM roles](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles.html) for authentication
 - **AWS Cognito OIDC**: Uses OIDC tokens from [AWS Cognito](https://docs.aws.amazon.com/cognito/latest/developerguide/what-is-amazon-cognito.html) for authentication
 
-**Note**: You must select either IAM Role Assumption OR Cognito OIDC as your authentication method. They cannot be used simultaneously in the same deployment.
+**Note**: For AWS, You must select either IAM Role Assumption OR Cognito OIDC as your authentication method. 
+They cannot be used simultaneously in the same deployment.
+
+### Azure Authentication
+- **Azure Managed Identity OIDC**: Uses [Azure managed identities](https://docs.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview) with OIDC for authentication
+
 
 ## Requirements
 
-- Amazon EKS cluster
+- Amazon EKS cluster or Azure AKS cluster
 - JFrog Artifactory instance
-- Based on your chosen authentication method:
-  - **For IAM Role Assumption**: IAM role mapped to a JFrog Artifactory user
-  - **For Cognito OIDC**: OIDC provider and identity mappings. For more information, see [terraform-module](./terraform-module)
+- Based on your chosen cloud provider and authentication method:
+  - **For AWS IAM Role Assumption**: IAM role mapped to a JFrog Artifactory user
+  - **For AWS Cognito OIDC**: OIDC provider and identity mappings
+  - **For Azure Managed Identity**: Azure AD application for OIDC and kubelet Identity. 
+  For more information, see [terraform-module](./terraform-module)
 
 
 ## Logging and Debugging

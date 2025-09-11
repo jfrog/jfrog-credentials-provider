@@ -1,31 +1,47 @@
 # JFrog Kubelet Credential Provider Terraform Module
 
-This Terraform module sets up the JFrog Kubelet Credential Provider for Kubernetes clusters running on AWS. It supports two authentication methods (`cognito_oidc` and `assume_role`) and offers three different deployment methods to suit various infrastructure requirements.
+This Terraform module sets up the JFrog Kubelet Credential Provider for Kubernetes clusters running on AWS and Azure. It supports multiple authentication methods and offers flexible deployment methods to suit various infrastructure requirements.
 
 ## Overview
 
 JFrog Kubelet Credential Provider is a kubelet credential provider that enables Kubernetes nodes to securely authenticate with JFrog Artifactory for pulling container images. This module facilitates the deployment and configuration of the JFrog Kubelet Credential Provider across your Kubernetes infrastructure.
 
 ## Features
-- Configures the JFrog Kubelet Credential Provider for Kubernetes clusters on AWS
-- Supports `cognito_oidc` and `assume_role` authentication methods
-- Offers three flexible deployment methods:
-  1. EKS Node Group creation with built-in JFrog Kubelet Credential Provider
-  2. DaemonSet installation for existing EKS clusters
-  3. AWS CLI command generation for custom instance provisioning
+- Configures the JFrog Kubelet Credential Provider for Kubernetes clusters on AWS and Azure
+- Supports multiple authentication methods:
+  - AWS: `cognito_oidc` and `assume_role`
+  - Azure: `azure_oidc` (managed identity)
+- Offers flexible deployment methods:
+  - **AWS**: EKS Node Group creation, DaemonSet installation, or AWS CLI command generation
+  - **Azure**: DaemonSet installation for AKS clusters
 
 ## Deployment Methods
 
 Note - If you'd like to get right into running commands look at [Quick Setup](#quick-setup). But we recommend reading through all the possible configurations
 
 ### Required Configuration
-Irrespective of the deployment method you decide, these variables are required by default. 
+Irrespective of the deployment method you decide, these variables are required by default.
 
+**For AWS:**
 ```hcl
+enable_aws = true
 artifactory_url = "myart.jfrog.io"
 artifactory_user = "aws-eks-user"
 // This should be mapped to artifactory user or the OIDC provider
 iam_role_arn = "<ARN>"
+```
+
+**For Azure:**
+```hcl
+enable_azure = true
+artifactory_url = "myart.jfrog.io"
+artifactory_user = "azure-aks-user"
+azure_envs = {
+  azure_app_client_id      = "your-azure-app-client-id"
+  azure_tenant_id          = "your-azure-tenant-id"
+  azure_app_audience       = "api://AzureADTokenExchange"
+  azure_nodepool_client_id = "your-azure-nodepool-client-id"
+}
 ```
 
 **You also need to export your Artifactory token. This is used to create IAM role mappings to the user and/or OIDC mappings to the provider.**
@@ -34,6 +50,7 @@ iam_role_arn = "<ARN>"
 export ARTIFACTORY_TOKEN=<TOKEN>
 ```
 
+### AWS Deployment Methods
 
 ### 1. EKS Node Group Creation
 This method creates new EKS node groups with the JFrog Kubelet Credential Provider pre-installed as part of the node bootstrap process. Use this method when provisioning new EKS node groups.
@@ -71,11 +88,36 @@ eks_node_group_configuration = {
 - Restarts the kubelet to enable the credential provider
 
 ### 2. DaemonSet Installation
-This method deploys the JFrog Kubelet Credential Provider to existing EKS clusters using a Kubernetes DaemonSet. Use this when you need to add the credential provider to already running clusters.
+This method deploys the JFrog Kubelet Credential Provider to existing clusters using a Kubernetes DaemonSet. Use this when you need to add the credential provider to already running clusters.
 
-**Key Configuration Parameters:**
+**For AWS EKS:**
 ```hcl
+enable_aws = true
 create_eks_node_groups = false
+jfrog_credential_plugin_daemonset_installation = true
+daemonset_configuration = {
+  jfrog_namespace = "jfrog"
+  node_selector = [
+    {
+      key = "kubernetes.io/os"
+      value = "linux"
+    }
+  ]
+  tolerations = [
+    {
+      key      = "dedicated"
+      operator = "Equal"
+      value    = "jfrog"
+      effect   = "NoSchedule"
+    }
+  ]
+}
+kubeconfig_path = "~/.kube/config"
+```
+
+**For Azure AKS:**
+```hcl
+enable_azure = true
 jfrog_credential_plugin_daemonset_installation = true
 daemonset_configuration = {
   jfrog_namespace = "jfrog"
@@ -106,7 +148,7 @@ kubeconfig_path = "~/.kube/config"
   - Restart the kubelet service
 - Uses a lightweight pause container to maintain the DaemonSet lifecycle
 
-### 3. AWS CLI Command Generation
+### 3. AWS CLI Command Generation (AWS Only)
 This method generates AWS CLI commands to create Launch Templates that include the JFrog Kubelet Credential Provider configuration. Use this for custom instance provisioning workflows or when using AWS AutoScaling Groups with Launch Templates.
 
 **Key Configuration Parameters:**
@@ -127,11 +169,14 @@ generate_aws_cli_command = true
 
 ## Authentication Methods
 
-### COGNITO OIDC Authentication
+### AWS Authentication
+
+#### COGNITO OIDC Authentication
 Uses AWS Cognito for OIDC authentication with JFrog Artifactory.
 
 **Required Variables for OIDC:**
 ```hcl
+enable_aws = true
 authentication_method = "cognito_oidc"
 jfrog_oidc_provider_name = "jfrog-aws-oidc"
 aws_cognito_user_pool_secret_name = "my-cognito-secret"
@@ -143,14 +188,33 @@ aws_cognito_resource_server_name = "my-resource-server"
 artifactory_user = "aws-eks-user"
 ```
 
-### ASSUME ROLE Authentication
+#### ASSUME ROLE Authentication
 Uses AWS IAM Role assumption for authentication with JFrog Artifactory.
 
 **Required Variables for Assume Role:**
 ```hcl
+enable_aws = true
 authentication_method = "assume_role"
 iam_role_arn = "arn:aws:iam::123456789012:role/jfrog-role"
 artifactory_user = "aws-eks-user"
+```
+
+### Azure Authentication
+
+#### AZURE OIDC Authentication
+Uses Azure managed identities with OIDC for authentication with JFrog Artifactory.
+
+**Required Variables for Azure OIDC:**
+```hcl
+enable_azure = true
+jfrog_oidc_provider_name = "jfrog-azure-oidc-provider"
+azure_envs = {
+  azure_app_client_id      = "your-azure-app-client-id"
+  azure_tenant_id          = "your-azure-tenant-id"
+  azure_app_audience       = "api://AzureADTokenExchange"
+  azure_nodepool_client_id = "your-azure-nodepool-client-id"
+}
+artifactory_user = "azure-aks-user"
 ```
 
 ## Usage
@@ -169,9 +233,13 @@ terraform apply
 ### Module Usage
 To use this module in your Terraform configuration, add the following:
 
+**For AWS:**
 ```hcl
 module "jfrog_credential_provider" {
   source = "path/to/this/module"
+
+  # Enable AWS
+  enable_aws = true
 
   # Choose a deployment method
   create_eks_node_groups = true
@@ -189,11 +257,38 @@ module "jfrog_credential_provider" {
 }
 ```
 
+**For Azure:**
+```hcl
+module "jfrog_credential_provider" {
+  source = "path/to/this/module"
+
+  # Enable Azure
+  enable_azure = true
+
+  # Azure only supports DaemonSet installation
+  jfrog_credential_plugin_daemonset_installation = true
+
+  # Set required parameters
+  artifactory_url = "example.jfrog.io"
+  artifactory_user = "azure-aks-user"
+  jfrog_oidc_provider_name = "jfrog-azure-oidc-provider"
+  
+  azure_envs = {
+    azure_app_client_id      = "your-azure-app-client-id"
+    azure_tenant_id          = "your-azure-tenant-id"
+    azure_app_audience       = "api://AzureADTokenExchange"
+    azure_nodepool_client_id = "your-azure-nodepool-client-id"
+  }
+  
+  # Add other method-specific variables as needed
+}
+```
+
 ## Example Configurations
 
 The module includes several examples to help you get started:
 
-- **Configuration Examples**:
+- **AWS Configuration Examples**:
   - `examples/terraform.oidc.tfvars` - Example with Cognito OIDC authentication
   - `examples/terraform.assume_role.tfvars` - Example with AWS IAM Role authentication
 
@@ -210,12 +305,12 @@ To use these examples:
 
 Before using this module, ensure you have:
 
-1. **For EKS Node Group Method**:
+1. **For AWS EKS Node Group Method**:
    - AWS credentials with permissions to create and manage EKS node groups
    - An existing EKS cluster
 
 2. **For DaemonSet Method**:
-   - A running Kubernetes cluster
+   - A running Kubernetes cluster (EKS or AKS)
    - `kubectl` access to the cluster (via kubeconfig)
 
 3. **For AWS CLI Command Method**:
@@ -223,8 +318,9 @@ Before using this module, ensure you have:
    - AWS CLI installed if you plan to execute the generated commands
 
 4. **Authentication Requirements**:
-   - For OIDC: A configured AWS Cognito User Pool with an appropriate resource server
-   - For Assume Role: An IAM role with appropriate permissions and trust relationships
+   - **For AWS OIDC**: A configured AWS Cognito User Pool with an appropriate resource server
+   - **For AWS Assume Role**: An IAM role with appropriate permissions and trust relationships
+   - **For Azure OIDC**: An Azure AD application with federated identity credentials and managed identity mappings
 
 ## Quick Setup
 
@@ -240,6 +336,7 @@ If you'd want to avoid reading all of this and just want to go ahead and try it 
 
 ## Important Notes
 
+### AWS
 - Ensure the IAM role used has the necessary permissions (at minimum `sts:GetCallerIdentity`)
 - For JFrog Artifactory integration, ensure the IAM role is mapped to a JFrog Artifactory user:
   ```
@@ -296,4 +393,41 @@ If you'd want to avoid reading all of this and just want to go ahead and try it 
         "priority": 1
       }'
   ```
+
+### Azure
+- Ensure the Azure AD application has federated identity credentials configured for the AKS cluster
+- For JFrog Artifactory integration, ensure the OIDC provider is configured:
+  ```
+  curl -XPOST "https://<ARTIFACTORY_URL>/access/api/v1/oidc" \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer <TOKEN>" \
+      -d '{
+        "name": "<PROVIDER_NAME>",
+        "issuer_url": "https://login.microsoftonline.com/<TENANT_ID>/v2.0",
+        "description": "OIDC with Azure",
+        "provider_type": "Azure",
+        "token_issuer": "https://login.microsoftonline.com/<TENANT_ID>/v2.0",
+        "use_default_proxy": false
+      }'
+
+  curl -XPOST "https://<ARTIFACTORY_URL>/access/api/v1/oidc/<PROVIDER_NAME>/identity_mappings" \
+      -H "Content-Type: application/json" \
+      -H "Authorization: Bearer <TOKEN>" \
+      -d '{
+        "name": "<PROVIDER_NAME>",
+        "description": "Azure OIDC identity mapping",
+        "claims": {
+          "aud": "<AZURE_APP_CLIENT_ID>",
+          "iss": "https://login.microsoftonline.com/<TENANT_ID>/v2.0"
+        },
+        "token_spec": {
+          "username": "<ARTIFACTORY_USER>",
+          "scope": "applied-permissions/user",
+          "audience": "*@*",
+          "expires_in": 3600
+        },
+        "priority": 1
+      }'
+  ```
+
 - After deployment, verify the provider is working by pulling an image from your JFrog Artifactory repository
