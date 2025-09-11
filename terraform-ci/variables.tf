@@ -204,6 +204,12 @@ variable "azure_location" {
   default     = "East US"
 }
 
+variable "existing_azure_app_client_id" {
+  description = "Client ID of an existing Azure AD application to use. If not provided, a new application will be created."
+  type        = string
+  default     = null
+}
+
 variable "create_aks_cluster" {
   description = "Set to true to create a new AKS cluster, false to use an existing one."
   type        = bool
@@ -240,25 +246,6 @@ variable "azure_admin_username" {
   default     = "azureadmin"
 }
 
-# Azure AD / JFrog OIDC Configuration
-variable "azure_envs" {
-  description = "Azure environment variables for the JFrog Credential Provider."
-  type = object({
-    azure_app_client_id      = string
-    azure_tenant_id          = string
-    azure_app_audience       = string
-    azure_nodepool_client_id = string
-  })
-  default = null
-}
-
-# Validation checks
-check "at_least_one_provider_enabled" {
-  assert {
-    condition     = var.enable_aws || var.enable_azure
-    error_message = "At least one cloud provider must be enabled (enable_aws or enable_azure)."
-  }
-}
 
 check "azure_subscription_id_required" {
   assert {
@@ -281,9 +268,8 @@ check "aks_cluster_name_required" {
   }
 }
 
-check "azure_envs_required" {
-  assert {
-    condition = !var.enable_azure || var.azure_envs != null
-    error_message = "When enable_azure is true, azure_envs must be provided with Azure AD configuration."
-  }
+variable "artifactory_glob_pattern" {
+  description = "The glob pattern for the Artifactory URL. This is used to match the images that the JFrog Credential Provider will be used for."
+  type        = string
+  default     = "partnership*.jfrog.io"
 }

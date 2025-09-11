@@ -4,7 +4,7 @@ resource "local_file" "jfrog_provider_oidc" {
         {
         "name": "jfrog-credential-provider",
         "matchImages": [
-            "*.jfrog.io"
+            "${var.artifactory_glob_pattern}"
         ],
         "defaultCacheDuration": "4h",
         "apiVersion": "credentialprovider.kubelet.k8s.io/v1",
@@ -62,7 +62,7 @@ resource "local_file" "jfrog_provider_assume_role"  {
     {
       "name": "jfrog-credential-provider",
       "matchImages": [
-        "*.jfrog.io"
+        "${var.artifactory_glob_pattern}"
       ],
       "defaultCacheDuration": "4h",
       "apiVersion": "credentialprovider.kubelet.k8s.io/v1",
@@ -96,7 +96,7 @@ resource "local_file" "jfrog_provider_azure" {
     name: jfrog-credential-provider
     apiVersion: credentialprovider.kubelet.k8s.io/v1
     matchImages:
-      - "*.jfrog.io"
+      - "${var.artifactory_glob_pattern}"
     defaultCacheDuration: "4h"
     env:
     - name: artifactory_url

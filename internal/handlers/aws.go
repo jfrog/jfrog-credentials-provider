@@ -400,7 +400,12 @@ func getResourceServerId(s *service.Service, cfg aws.Config, userPoolName string
 
 func CheckIfAWS(s *service.Service, ctx context.Context) (bool, error) {
 	s.Logger.Info("Checking if cloud provider is AWS")
+	token, err := getToken(s, ctx)
+	if err != nil {
+		return false, fmt.Errorf("Error getting aws token: %v", err)
+	}
 	req, err := http.NewRequestWithContext(ctx, "GET", METADATA_URL, nil)
+	req.Header.Add("X-aws-ec2-metadata-token", token)
 	if err != nil {
 		return false, fmt.Errorf("Error creating request to check if cloud provider is AWS: %v", err)
 	}

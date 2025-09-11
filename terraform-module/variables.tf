@@ -242,33 +242,6 @@ variable "wait_for_creation" {
   type = string
 }
 
-check "at_least_one_provider_enabled" {
-  assert {
-    condition     = var.enable_aws || var.enable_azure
-    error_message = "At least one cloud provider must be enabled (enable_aws or enable_azure)."
-  }
-}
-
-check "assume_role_requires_iam_role_arn" {
-  assert {
-    condition     = var.authentication_method != "assume_role" || (var.iam_role_arn != null && var.iam_role_arn != "")
-    error_message = "If authentication_method is 'assume_role', then 'iam_role_arn' must be provided and be a non-empty string."
-  }
-}
-
-check "cognito_oidc_requires_cognito_variables" {
-  assert {
-    condition = var.authentication_method != "cognito_oidc" || (
-      (var.jfrog_oidc_provider_name != null && var.jfrog_oidc_provider_name != "") &&
-      (var.aws_cognito_user_pool_secret_name != null && var.aws_cognito_user_pool_secret_name != "") &&
-      (var.aws_cognito_user_pool_name != null && var.aws_cognito_user_pool_name != "") &&
-      (var.aws_cognito_user_pool_id != null && var.aws_cognito_user_pool_id != "") &&
-      (var.aws_cognito_user_pool_domain_name != null && var.aws_cognito_user_pool_domain_name != "") &&
-      (var.aws_cognito_resource_server_name != null && var.aws_cognito_resource_server_name != "")
-    )
-    error_message = "If authentication_method is 'cognito_oidc', then 'jfrog_oidc_provider_name', 'aws_cognito_user_pool_secret_name', 'aws_cognito_user_pool_name', 'aws_cognito_user_pool_id', 'aws_cognito_user_pool_domain_name', 'aws_cognito_resource_server_name' must be provided and be non-empty strings."
-  }
-}
 
 variable "azure_envs" {
   description = "Environment variables for the Azure Credential Provider."
@@ -283,4 +256,12 @@ variable "azure_envs" {
     azure_nodepool_client_id = string
   })
   default = null
+}
+
+// Make sure to set this properly as this would use credential provider for even public release repository depending on this pattern
+// for example myart*.jfrog.io is allowed
+variable "artifactory_glob_pattern" {
+  description = "The glob pattern for the Artifactory URL. This is used to match the images that the JFrog Credential Provider will be used for."
+  type        = string
+  default     = "*.jfrog.io"
 }
