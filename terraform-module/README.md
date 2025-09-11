@@ -1,6 +1,6 @@
 # JFrog Kubelet Credential Provider Terraform Module
 
-This Terraform module sets up the JFrog Kubelet Credential Provider for Kubernetes clusters running on AWS and Azure. It supports multiple authentication methods and offers flexible deployment methods to suit various infrastructure requirements.
+This Terraform module sets up the JFrog Kubelet Credential Provider for Kubernetes clusters running on AWS and Azure.It supports two authentication methods (`cognito_oidc` and `assume_role`) for AWS, and Azure App for azure (OIDC) and offers flexible deployment methods to suit various infrastructure requirements.
 
 ## Overview
 
@@ -36,6 +36,7 @@ iam_role_arn = "<ARN>"
 enable_azure = true
 artifactory_url = "myart.jfrog.io"
 artifactory_user = "azure-aks-user"
+kubeconfig_path = "azure_cluster_kubeconfig"
 azure_envs = {
   azure_app_client_id      = "your-azure-app-client-id"
   azure_tenant_id          = "your-azure-tenant-id"
@@ -267,6 +268,7 @@ module "jfrog_credential_provider" {
 
   # Azure only supports DaemonSet installation
   jfrog_credential_plugin_daemonset_installation = true
+  kubeconfig_path = "azure_k8s_kubeconfig"
 
   # Set required parameters
   artifactory_url = "example.jfrog.io"
