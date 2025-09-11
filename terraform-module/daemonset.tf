@@ -12,18 +12,16 @@ provider "kubernetes" {
 
 locals {
   raw   = file("${path.module}/jfrog/k8s-bootstrap.sh")
-  IMAGE_CREDENTIAL_PROVIDER_DIR   = var.enable_aws ? "/host/etc/eks/image-credential-provider" : var.enable_azure ? "/var/lib/kubelet/credential-provider" : ""
-  IMAGE_CREDENTIAL_PROVIDER_CONFIG = var.enable_aws ? "/host/etc/eks/image-credential-provider/config.json" : var.enable_azure ? "/var/lib/kubelet/credential-provider-config.yaml" : ""
-  IMAGE_CREDENTIAL_PROVIDER_FILE_NAME = var.enable_aws ? "jfrog-provider.json" : var.enable_azure ? "jfrog-provider.yaml" : ""
-  IMAGE_CREDENTIAL_BINARY_PATH = var.enable_aws ? "/etc/eks/image-credential-provider/jfrog-credential-provider" : var.enable_azure ? "/var/lib/kubelet/credential-provider/jfrog-credential-provider" : ""
-  replaceDir = replace(local.raw, "__IMAGE_CREDENTIAL_PROVIDER_DIR__",  local.IMAGE_CREDENTIAL_PROVIDER_DIR)
-  replaceConfigPath = replace(local.replaceDir, "__IMAGE_CREDENTIAL_PROVIDER_CONFIG__", local.IMAGE_CREDENTIAL_PROVIDER_CONFIG)
-  replaceBinaryPath = replace(local.replaceConfigPath, "__IMAGE_CREDENTIAL_BINARY_PATH__", local.IMAGE_CREDENTIAL_BINARY_PATH)
-  finalBootstrapSh = replace(local.replaceBinaryPath, "__IMAGE_CREDENTIAL_PROVIDER_FILE_NAME__", local.IMAGE_CREDENTIAL_PROVIDER_FILE_NAME)
+  JFROG_CREDENTIAL_PROVIDER_BINARY_DIR = var.enable_aws ? "/etc/eks/image-credential-provider" : var.enable_azure ? "/var/lib/kubelet/credential-provider" : ""
+  KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH = var.enable_aws ? "/etc/eks/image-credential-provider/config.json" : var.enable_azure ? "/var/lib/kubelet/credential-provider-config.yaml" : ""
+
+
+  replaceDir = replace(local.raw, "__JFROG_CREDENTIAL_PROVIDER_BINARY_DIR__",  local.JFROG_CREDENTIAL_PROVIDER_BINARY_DIR)
+  finalBootstrapSh = replace(local.replaceDir, "__KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH__", local.KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH)
 }
 
 resource "kubernetes_namespace" "jfrog_namespace" {
-    count = var.jfrog_credential_plugin_daemonset_installation ? 1 : 0
+    count = var.enable_aws || var.enable_azure ? (var.jfrog_credential_plugin_daemonset_installation ? 1 : 0) : 0
     metadata {
         annotations = {
         name = var.daemonset_configuration.jfrog_namespace
@@ -39,7 +37,7 @@ resource "kubernetes_namespace" "jfrog_namespace" {
 
 resource "kubernetes_config_map" "jfrog_credential_provider_bootstrap" {
 
-    count = var.jfrog_credential_plugin_daemonset_installation ? 1 : 0
+    count = var.enable_aws || var.enable_azure ? (var.jfrog_credential_plugin_daemonset_installation ? 1 : 0) : 0
     depends_on = [ kubernetes_namespace.jfrog_namespace ]
     metadata {
         name = "jfrog-credential-provider-bootstrap"
@@ -53,7 +51,7 @@ resource "kubernetes_config_map" "jfrog_credential_provider_bootstrap" {
 
 resource "kubernetes_config_map" "jfrog_credential_provider_config" {
 
-    count = var.jfrog_credential_plugin_daemonset_installation ? 1 : 0
+    count = var.enable_aws || var.enable_azure ? (var.jfrog_credential_plugin_daemonset_installation ? 1 : 0) : 0
     depends_on = [ kubernetes_namespace.jfrog_namespace, local_file.jfrog_provider_oidc, local_file.jfrog_provider_assume_role, local_file.jfrog_provider_azure ]
     metadata {
         name = "jfrog-credential-provider-config"
@@ -73,7 +71,7 @@ resource "kubernetes_config_map" "jfrog_credential_provider_config" {
 
 resource "kubernetes_daemonset" "jfrog_credential_provider" {
 
-    count = var.jfrog_credential_plugin_daemonset_installation ? 1 : 0
+    count = var.enable_aws || var.enable_azure ? (var.jfrog_credential_plugin_daemonset_installation ? 1 : 0) : 0
     depends_on = [
         kubernetes_namespace.jfrog_namespace,
         kubernetes_config_map.jfrog_credential_provider_bootstrap,
@@ -130,6 +128,14 @@ resource "kubernetes_daemonset" "jfrog_credential_provider" {
             env {
                 name = "JFROG_CREDENTIAL_PROVIDER_BINARY_URL"
                 value = var.jfrog_credential_provider_binary_url
+            }
+
+            dynamic "env" {
+                for_each = var.enable_aws ? [1] : []
+                content {
+                    name = "KUBELET_MOUNT_PATH"
+                    value = "/host"
+                }
             }
 
             command = [

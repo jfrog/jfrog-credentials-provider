@@ -6,6 +6,8 @@ module manage_eks_nodes_using_jfrog_credential_plugin {
     jfrog_credential_provider_binary_url = var.jfrog_credential_provider_binary_url
     artifactory_url  = var.artifactory_url
 
+    artifactory_glob_pattern = var.artifactory_glob_pattern
+
     artifactory_user = var.artifactory_user
 
     create_eks_node_groups = true
@@ -53,6 +55,7 @@ module create_azure_daemonset_with_plugin_enabled {
     
     jfrog_credential_provider_binary_url = var.jfrog_credential_provider_binary_url
     artifactory_url  = var.artifactory_url
+    artifactory_glob_pattern = var.artifactory_glob_pattern
     artifactory_user = "azure-aks-user"
 
     # Azure only supports DaemonSet installation
@@ -61,14 +64,14 @@ module create_azure_daemonset_with_plugin_enabled {
 
     # Azure authentication configuration
     azure_envs = var.enable_azure ? {
-        azure_app_client_id = azuread_application_registration.jfrog_credentials_provider_ad_app.client_id
+        azure_app_client_id = local.azure_client_id
         azure_tenant_id = data.azuread_client_config.current[0].tenant_id
         azure_app_audience = "api://AzureADTokenExchange"
-        azure_nodepool_client_id = data.azurerm_kubernetes_cluster.k8s[0].kubelet_identity[0].object_id
+        azure_nodepool_client_id = data.azurerm_kubernetes_cluster.k8s[0].kubelet_identity[0].client_id
     } : null
     jfrog_oidc_provider_name = var.jfrog_oidc_provider_name
 
-    wait_for_creation = var.enable_azure ? data.azurerm_kubernetes_cluster.k8s[0].kubelet_identity[0].object_id : ""
+    wait_for_creation = var.enable_azure ? data.azurerm_kubernetes_cluster.k8s[0].kubelet_identity[0].client_id : ""
 
     kubernetes_auth_object = var.enable_azure ? {
         host                   = var.create_aks_cluster ? azurerm_kubernetes_cluster.k8s[0].kube_config[0].host : data.azurerm_kubernetes_cluster.k8s[0].kube_config[0].host
@@ -95,6 +98,7 @@ module create_daemonset_with_plugin_enabled {
 
     jfrog_credential_provider_binary_url = var.jfrog_credential_provider_binary_url
     artifactory_url  = var.artifactory_url
+    artifactory_glob_pattern = var.artifactory_glob_pattern
 
     artifactory_user = var.artifactory_user
 

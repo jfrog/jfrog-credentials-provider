@@ -49,7 +49,7 @@ resource "null_resource" "configure_artifactory_oidc" {
         exit 1
       fi
 
-      if [ "${self.triggers.cloud_provider}" = "aws" && "${self.triggers.authentication_method}" = "assume_role" ]; then
+      if [[ "${self.triggers.cloud_provider}" = "aws" && "${self.triggers.authentication_method}" = "assume_role" ]]; then
       echo "Delete existing AWS IAM role binding (if any)..."
       curl  -X DELETE "https://${self.triggers.artifactory_url}/access/api/v1/aws/iam_role/${self.triggers.artifactory_user}" \
           -H "Authorization: Bearer $ARTIFACTORY_TOKEN" || echo "AWS IAM role binding not found or deletion failed, continuing..."
@@ -64,6 +64,8 @@ resource "null_resource" "configure_artifactory_oidc" {
           }'
       echo "Artifactory AWS IAM role binding configuration complete."
       fi
+
+      if [[ "${self.triggers.cloud_provider}" = "azure" || ("${self.triggers.cloud_provider}" = "aws" && "${self.triggers.authentication_method}" = "cognito_oidc") ]]; then
 
       echo "Attempting to configure Artifactory OIDC provider: ${self.triggers.jfrog_oidc_provider_name}"
 
@@ -101,6 +103,7 @@ resource "null_resource" "configure_artifactory_oidc" {
             "priority": 1
           }'
       echo "Artifactory OIDC configuration complete."
+      fi
 
     EOT
     interpreter = ["bash", "-c"]

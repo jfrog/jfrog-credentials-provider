@@ -9,9 +9,20 @@ log () {
 
 log "Startup of the JFrog Credential Plugin injector"
 
-export IMAGE_CREDENTIAL_PROVIDER_DIR=__IMAGE_CREDENTIAL_PROVIDER_DIR__
-export IMAGE_CREDENTIAL_PROVIDER_CONFIG=__IMAGE_CREDENTIAL_PROVIDER_CONFIG__
-export IMAGE_CREDENTIAL_PROVIDER_FILE_NAME=__IMAGE_CREDENTIAL_PROVIDER_FILE_NAME__
+# KUBELET_MOUNT_PATH comes from daemonset
+# Add trailing slash if not present
+if [[ ${KUBELET_MOUNT_PATH} != */ ]]; then
+    KUBELET_MOUNT_PATH="${KUBELET_MOUNT_PATH}/"
+fi
+
+JFROG_CONFIG_FILE="jfrog-provider"
+export JFROG_CREDENTIAL_PROVIDER_BINARY_DIR=__JFROG_CREDENTIAL_PROVIDER_BINARY_DIR__
+
+export KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH=__KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH__
+# to copy the jfrog config to the kubelet config path
+export KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR=$(dirname ${KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH})
+# to figure out if it's yaml or json
+export KUBELET_CREDENTIAL_PROVIDER_CONFIG_FILE_NAME=$(basename ${KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH})
 
 log "The content of the current ${IMAGE_CREDENTIAL_PROVIDER_CONFIG}:"
 cat ${IMAGE_CREDENTIAL_PROVIDER_CONFIG}
@@ -27,7 +38,7 @@ export JFROG_CREDENTIAL_PROVIDER_BINARY_URL="${JFROG_CREDENTIAL_PROVIDER_BINARY_
 
 # Pull the jfrog-credential-provider binary
 echo "Downloading the jfrog-credential-provider binary (${JFROG_CREDENTIAL_PROVIDER_BINARY_URL})"
-curl -L -f -o ${IMAGE_CREDENTIAL_PROVIDER_DIR}/jfrog-credential-provider "${JFROG_CREDENTIAL_PROVIDER_BINARY_URL}"
+curl -L -f -o ${KUBELET_MOUNT_PATH}${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/jfrog-credential-provider "${JFROG_CREDENTIAL_PROVIDER_BINARY_URL}"
 
 if [[ $? -ne 0 ]]; then
     echo "Downloading (${JFROG_CREDENTIAL_PROVIDER_BINARY_URL}) failed"
@@ -40,21 +51,19 @@ else
     echo "Successfully downloaded the jfrog-credential-provider binary from Artifactory"
     # Make the binary executable
     echo "Making the jfrog-credential-provider binary executable"
-    chmod +x ${IMAGE_CREDENTIAL_PROVIDER_DIR}/jfrog-credential-provider
-
-    KUBELET_CONFIG_DIR=$(dirname ${IMAGE_CREDENTIAL_PROVIDER_CONFIG})
-    KUBELET_CONFIG_FILE_NAME=$(basename ${IMAGE_CREDENTIAL_PROVIDER_FILE_NAME})
-
-    echo "Copying the /etc/${IMAGE_CREDENTIAL_PROVIDER_FILE_NAME} configuration file to ${KUBELET_CONFIG_DIR}/${IMAGE_CREDENTIAL_PROVIDER_FILE_NAME}"
-    cp -f /etc/${IMAGE_CREDENTIAL_PROVIDER_FILE_NAME} ${KUBELET_CONFIG_DIR}/${IMAGE_CREDENTIAL_PROVIDER_FILE_NAME}
-    cat ${KUBELET_CONFIG_DIR}/${IMAGE_CREDENTIAL_PROVIDER_FILE_NAME}
-    sleep 2 | # Wait a bit to ensure the file is copied before proceeding
+    chmod +x ${KUBELET_MOUNT_PATH}${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/jfrog-credential-provider ]]
 
     # if extension is yaml, set --yaml flag
-    if [[ ${KUBELET_CONFIG_FILE_NAME} == *.yaml ]]; then
-        nsenter -t 1 -m -p -- __IMAGE_CREDENTIAL_BINARY_PATH__ add-provider-config --yaml --provider-home "${KUBELET_CONFIG_DIR}" --provider-config "${KUBELET_CONFIG_FILE_NAME}"
+    if [[ ${KUBELET_CREDENTIAL_PROVIDER_CONFIG_FILE_NAME} == *.yaml ]]; then
+        echo "Copying the  /etc/${JFROG_CONFIG_FILE}.yaml configuration file to ${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}/${JFROG_CONFIG_FILE}.yaml"
+        cp -f "/etc/${JFROG_CONFIG_FILE}.yaml" "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}/${JFROG_CONFIG_FILE}.yaml"
+        sleep 2 # Wait a bit to ensure the file is copied before proceeding
+        nsenter -t 1 -m -p -- ${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/jfrog-credential-provider add-provider-config --yaml --provider-home "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}" --provider-config "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_FILE_NAME}"
     else
-        nsenter -t 1 -m -p -- __IMAGE_CREDENTIAL_BINARY_PATH__ add-provider-config --provider-home "${KUBELET_CONFIG_DIR}" --provider-config "${KUBELET_CONFIG_FILE_NAME}"
+        echo "Copying the  /etc/${JFROG_CONFIG_FILE}.json configuration file to ${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}/${JFROG_CONFIG_FILE}.json"
+        cp -f "/etc/${JFROG_CONFIG_FILE}.json" "${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}/${JFROG_CONFIG_FILE}.json"
+        sleep 2 # Wait a bit to ensure the file is copied before proceeding
+        nsenter -t 1 -m -p -- ${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/jfrog-credential-provider add-provider-config --provider-home "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}" --provider-config "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_FILE_NAME}"
     fi
 
     # Update the kubelet configuration to use the jfrog-credential-provider
