@@ -46,7 +46,5 @@ resource "azuread_application_federated_identity_credential" "federated_identity
   issuer         = "https://login.microsoftonline.com/${data.azuread_client_config.current[0].tenant_id}/v2.0"
   subject        = data.azurerm_kubernetes_cluster.k8s[0].kubelet_identity[0].object_id
 
-  lifecycle {
-    create_before_destroy = true
-  }
+  depends_on = [ azurerm_kubernetes_cluster.k8s, local.azure_app_id, data.azurerm_kubernetes_cluster.k8s[0] ]
 }

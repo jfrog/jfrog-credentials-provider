@@ -5,7 +5,7 @@ on:
       JFROG_CREDENTIAL_PLUGIN_BINARY_URL:
         description: 'BINARY_URL (CI adds arch suffix automatically)'
         required: true
-        default: "https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/0.1.0-beta.1/jfrog-credential-provider-aws-linux"
+        default: "https://partnership.jfrog.io/artifactory/credential-provider-test/jfrog-credential-provider"
         type: string
       DISABLE_TERRAFORM_DESTROY:
         description: 'DISABLE_TERRAFORM_DESTROY'
@@ -42,6 +42,13 @@ jobs:
         run: |
           aws sts get-caller-identity
 
+      - name: Login to Azure with Federated Credentials
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_APP_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_APP_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_APP_SUBSCRIPTION_ID }}
+
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -50,9 +57,13 @@ jobs:
 
       - name: Initialise Terraform
         id: init
+        env:
+          AZURE_APP_SUBSCRIPTION_ID: ${{ secrets.AZURE_APP_SUBSCRIPTION_ID }}
         run: |
           echo "" >> build/terraform.tfvars.aws
           echo "jfrog_credential_provider_binary_url=\"$JFROG_CREDENTIAL_PLUGIN_BINARY_URL\"" >> build/terraform.tfvars.aws
+          # for azure, it is not possible to avoid azure authentication check, even when azure is disabled
+          echo "azure_subscription_id=\"$AZURE_APP_SUBSCRIPTION_ID\"" >> build/terraform.tfvars.aws
           cp build/terraform.tfvars.aws terraform-ci/terraform.tfvars
           cd terraform-ci
           terraform init
@@ -78,7 +89,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: terraform-context-for-manual-cleanup
+          name: terraform-context-for-manual-cleanup-aws
           path: |
             terraform-ci/**/*.tf
             terraform-ci/jfrog/* 
@@ -97,8 +108,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
+
+      - name: Install Azure CLI
+        uses: pietrobolcato/install-azure-cli-action@main
         
-      - name: 'Login to Azure with Federated Credentials'
+      - name: Login to Azure with Federated Credentials
         uses: azure/login@v1
         with:
           client-id: ${{ secrets.AZURE_APP_CLIENT_ID }}
@@ -113,9 +127,12 @@ jobs:
 
       - name: Initialise Terraform
         id: init
+        env:
+          AZURE_APP_SUBSCRIPTION_ID: ${{ secrets.AZURE_APP_SUBSCRIPTION_ID }}
         run: |
           echo "" >> build/terraform.tfvars.azure
           echo "jfrog_credential_provider_binary_url=\"$JFROG_CREDENTIAL_PLUGIN_BINARY_URL\"" >> build/terraform.tfvars.azure
+          echo "azure_subscription_id=\"$AZURE_APP_SUBSCRIPTION_ID\"" >> build/terraform.tfvars.azure
           cp build/terraform.tfvars.azure terraform-ci/terraform.tfvars
           cd terraform-ci
           terraform init
@@ -123,7 +140,9 @@ jobs:
       - name: Run Azure Terraform CI
         id: apply
         run: |
+          # to avoid credentials check for aws
           cd terraform-ci
+          cat terraform.tfvars
           terraform apply -input=false -auto-approve
           terraform output -json > terraform_output.json
           echo "Terraform output: $(cat terraform_output.json)"
@@ -141,7 +160,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: terraform-context-for-manual-cleanup
+          name: terraform-context-for-manual-cleanup-azure
           path: |
             terraform-ci/**/*.tf
             terraform-ci/jfrog/* 
