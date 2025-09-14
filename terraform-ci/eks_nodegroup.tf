@@ -29,7 +29,7 @@ module "eks" {
     addons = {
         aws-ebs-csi-driver = {
             most_recent = true
-            service_account_role_arn = module.ebs_csi_irsa_role[0].iam_role_arn
+            service_account_role_arn = module.ebs_csi_irsa_role[0].arn
         }
         vpc-cni = {
             most_recent = true
@@ -111,9 +111,9 @@ module "daemonset_test_ng" {
 
 module "ebs_csi_irsa_role" {
     count = var.enable_aws && var.create_eks_cluster ? 1 : 0
-    source = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts-eks"
+    source = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts"
 
-    role_name             = "ebs-csi-role-${local.cluster_name}-${var.region}"
+    name             = "ebs-csi-role-${local.cluster_name}-${var.region}"
     attach_ebs_csi_policy = true
 
     oidc_providers = {

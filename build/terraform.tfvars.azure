@@ -22,13 +22,9 @@ self_managed_eks_cluster = {
 
 jfrog_namespace = "jfrog"
 
-region = "ap-northeast-3"
-
 enable_aws = false
 
 enable_azure = true
-
-azure_subscription_id = "6a2a0854-0ddb-4c9d-ac3e-5348c205002c"
 
 azure_resource_group_name = "infra-robin-test"
 
@@ -36,9 +32,11 @@ azure_location = "eastus"
 
 create_aks_cluster = true
 
-aks_cluster_name = "infra-robin-test-aks"
+aks_cluster_name = "jfrog-test-aks"
 
 azure_node_count = 3
 azure_node_vm_size = "Standard_D2pds_v5"
 azure_admin_username = "jfrog"
-azure_cluster_public_access_cidrs = ["52.9.243.19/32", "52.215.237.185/32", "13.127.185.21/32"]
+
+# time to live is very short for testing
+azure_cluster_public_access_cidrs = ["0.0.0.0/0"]
