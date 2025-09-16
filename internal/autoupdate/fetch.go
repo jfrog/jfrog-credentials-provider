@@ -75,9 +75,9 @@ func fetchLatestVersionTag(ctx context.Context, client *http.Client, currentVers
 	}
 
 	var latestVersionTag = addVPrefix(logs, currentVersion)
-	if !semver.IsValid(currentVersion) {
-		logs.Error("Current Version" + currentVersion + "isn't valid! Exiting")
-		return "", fmt.Errorf("invalid current version: %s", currentVersion)
+	if !semver.IsValid(latestVersionTag) {
+		logs.Error("Current Version " + latestVersionTag + " isn't valid! Exiting")
+		return "", fmt.Errorf("invalid current version: %s", latestVersionTag)
 	}
 
 	logs.Info("Current version: " + latestVersionTag)

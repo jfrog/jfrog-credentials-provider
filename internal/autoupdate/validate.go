@@ -25,6 +25,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
 
 type EnvVar struct {
@@ -55,9 +57,19 @@ func loadProviderEnvsFromFile(logs *logger.Logger, configPath string, targetProv
 	}
 
 	var config CredentialProviderConfig
-	if err := json.Unmarshal(data, &config); err != nil {
-		logs.Error("Error unmarshalling config JSON: " + err.Error())
-		return nil, err
+
+	// if yaml, parse it in yaml
+	if strings.HasSuffix(configPath, ".yaml") || strings.HasSuffix(configPath, ".yml") {
+		if err := yaml.Unmarshal(data, &config); err != nil {
+			logs.Error("Error unmarshalling config YAML: " + err.Error())
+			return nil, err
+		}
+	} else {
+		// if json, parse it in json
+		if err := json.Unmarshal(data, &config); err != nil {
+			logs.Error("Error unmarshalling config JSON: " + err.Error())
+			return nil, err
+		}
 	}
 
 	var providerEnvs []string

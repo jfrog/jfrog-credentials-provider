@@ -98,7 +98,7 @@ resource "null_resource" "configure_artifactory_oidc" {
               "username": "${self.triggers.artifactory_user}",
               "scope": "applied-permissions/user",
               "audience": "*@*",
-              "expires_in": 330
+              "expires_in": 14400
             },
             "priority": 1
           }'

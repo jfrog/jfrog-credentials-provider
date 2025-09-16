@@ -242,7 +242,7 @@ func handleAzureAuth(svc *service.Service, ctx context.Context, logs *logger.Log
 	}
 
 	// Exchange Azure OIDC token with JFrog Artifactory token
-	rtUsername, rtToken, err := handlers.ExchangeAzureOidcArtifactoryToken(svc, ctx, token, artifactoryUrl, jfrogOidcProviderName, azureAppClientId)
+	rtUsername, rtToken, err := handlers.ExchangeOidcArtifactoryToken(svc, ctx, token, artifactoryUrl, jfrogOidcProviderName, azureAppClientId)
 	if err != nil {
 		logs.Exit("ERROR in JFrog Credentials provider, error in createArtifactoryToken :"+err.Error(), 1)
 	}
