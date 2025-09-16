@@ -5,7 +5,7 @@ on:
       JFROG_CREDENTIAL_PLUGIN_BINARY_URL:
         description: 'BINARY_URL (CI adds arch suffix automatically)'
         required: true
-        default: "https://partnership.jfrog.io/artifactory/credential-provider-test/jfrog-credential-provider"
+        default: "https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/0.1.0-beta.1/jfrog-credential-provider-linux"
         type: string
       DISABLE_TERRAFORM_DESTROY:
         description: 'DISABLE_TERRAFORM_DESTROY'
@@ -150,7 +150,11 @@ jobs:
       - name: Destroy Azure terraform resources
         id: destroy
         if: always() && !env.DISABLE_TERRAFORM_DESTROY
-        continue-on-error: true 
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 20
+          max_attempts: 3
+          continue-on-error: true 
         run: |
           cd terraform-ci
           terraform destroy -input=false -auto-approve
