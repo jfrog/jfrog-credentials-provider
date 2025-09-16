@@ -6,7 +6,7 @@ PROJECT_NAME := kubelet-plugin-aws
 PLATFORMS:= linux/arm64 linux/amd64
 BUILD_DIR := bin
 # VERSION := $(shell git describe --tags --always)
-BIN=jfrog-credential-provider-aws
+BIN=jfrog-credential-provider
 
 # Make targets are file specific, thus PHONY 
 .PHONY: all
