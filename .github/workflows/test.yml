@@ -155,10 +155,10 @@ jobs:
           timeout_minutes: 20
           max_attempts: 3
           continue-on-error: true 
-        run: |
-          cd terraform-ci
-          terraform destroy -input=false -auto-approve
-          rm terraform.tfstate terraform.tfstate.backup terraform_output.json
+          command: |
+            cd terraform-ci
+            terraform destroy -input=false -auto-approve
+            rm terraform.tfstate terraform.tfstate.backup terraform_output.json
 
       - name: Upload Terraform context for manual cleanup
         if: always()
