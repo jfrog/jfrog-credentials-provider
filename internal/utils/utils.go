@@ -31,9 +31,11 @@ const (
 
 // CredentialProviderRequest is the request sent by the kubelet.
 type CredentialProviderRequest struct {
-	ApiVersion string `json:"apiVersion"`
-	Kind       string `json:"kind"`
-	Image      string `json:"image"`
+	ApiVersion                string            `json:"apiVersion"`
+	Kind                      string            `json:"kind"`
+	Image                     string            `json:"image"`
+	ServiceAccountToken       string            `json:"serviceAccountToken"`
+	ServiceAccountAnnotations map[string]string `json:"serviceAccountAnnotations"`
 }
 
 type AuthCredential struct {
@@ -53,11 +55,20 @@ type CredentialProviderResponse struct {
 }
 
 type Provider struct {
-	Name                 string   `json:"name" yaml:"name"`
-	MatchImages          []string `json:"matchImages" yaml:"matchImages"`
-	DefaultCacheDuration string   `json:"defaultCacheDuration" yaml:"defaultCacheDuration"`
-	APIVersion           string   `json:"apiVersion" yaml:"apiVersion"`
-	Env                  []EnvVar `json:"env,omitempty" yaml:"env,omitempty"`
+	Name                 string           `json:"name" yaml:"name"`
+	MatchImages          []string         `json:"matchImages" yaml:"matchImages"`
+	DefaultCacheDuration string           `json:"defaultCacheDuration" yaml:"defaultCacheDuration"`
+	APIVersion           string           `json:"apiVersion" yaml:"apiVersion"`
+	Env                  []EnvVar         `json:"env,omitempty" yaml:"env,omitempty"`
+	TokenAttributes      *TokenAttributes `json:"tokenAttributes,omitempty" yaml:"tokenAttributes,omitempty"`
+}
+
+type TokenAttributes struct {
+	ServiceAccountTokenAudience          string   `json:"serviceAccountTokenAudience,omitempty" yaml:"serviceAccountTokenAudience,omitempty"`
+	CacheType                            string   `json:"cacheType,omitempty" yaml:"cacheType,omitempty"`
+	RequireServiceAccount                bool     `json:"requireServiceAccount" yaml:"requireServiceAccount"`
+	RequiredServiceAccountAnnotationKeys []string `json:"requiredServiceAccountAnnotationKeys,omitempty" yaml:"requiredServiceAccountAnnotationKeys,omitempty"`
+	OptionalServiceAccountAnnotationKeys []string `json:"optionalServiceAccountAnnotationKeys,omitempty" yaml:"optionalServiceAccountAnnotationKeys,omitempty"`
 }
 
 type EnvVar struct {
@@ -230,10 +241,6 @@ func ValidateJfrogProviderConfig(config Provider, cloudProvider string) error {
 
 	switch cloudProvider {
 	case CloudProviderAWS:
-		if GetEnvVarValue(config.Env, "aws_role_name") == "" {
-			return fmt.Errorf("missing required fields in provider: aws_role_name")
-		}
-
 		awsAuthMethod := GetEnvVarValue(config.Env, "aws_auth_method")
 		if awsAuthMethod != "cognito_oidc" && awsAuthMethod != "assume_role" {
 			return fmt.Errorf("aws_auth_method can only be set as cognito_oidc or assume_role however the current value is :" + awsAuthMethod)

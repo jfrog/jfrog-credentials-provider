@@ -29,6 +29,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/aws-sdk-go-v2/service/sts/types"
 )
 
 const (
@@ -176,22 +178,57 @@ func requestOidcToken(s *service.Service, ctx context.Context, secretResult Secr
 	return oidcResult.Token, nil
 }
 
-func GetAWSSignedRequest(s *service.Service, ctx context.Context, awsRoleName string) (*http.Request, error) {
+// GetAWSWebIdentityCredentials generates temporary AWS credentials using Kubernetes service account token
+// This function implements IRSA (IAM Roles for Service Accounts) for EKS
+func GetAWSWebIdentityCredentials(s *service.Service, ctx context.Context,
+	serviceAccountToken string, roleArn string, region string) (*types.Credentials, error) {
+
+	s.Logger.Info("running aws web identity auth flow with IRSA")
+
+	// Load AWS config with the specified region
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+	if err != nil {
+		return &types.Credentials{}, fmt.Errorf("error loading default config: %v", err)
+	}
+
+	// Create STS client
+	stsClient := sts.NewFromConfig(cfg)
+
+	// Prepare the AssumeRoleWithWebIdentity input
+	input := &sts.AssumeRoleWithWebIdentityInput{
+		RoleArn:          aws.String(roleArn),
+		RoleSessionName:  aws.String("jfrog-credential-provider"),
+		WebIdentityToken: aws.String(serviceAccountToken),
+	}
+
+	// Call AssumeRoleWithWebIdentity
+	result, err := stsClient.AssumeRoleWithWebIdentity(ctx, input)
+	if err != nil {
+		s.Logger.Error("Error assuming role with web identity: " + err.Error())
+
+		// Provide specific guidance for audience errors
+		if strings.Contains(err.Error(), "InvalidIdentityToken") && strings.Contains(err.Error(), "audience") {
+			s.Logger.Info("SOLUTION: Update your IAM role trust policy to accept the token's audience")
+			s.Logger.Info("Current token audience is likely 'https://kubernetes.default.svc'")
+			s.Logger.Info("Your trust policy should include:")
+			s.Logger.Info(`"oidc.eks.YOUR_REGION.amazonaws.com/id/YOUR_CLUSTER_ID:aud": "https://kubernetes.default.svc"`)
+		}
+
+		return nil, &CredentialError{"assume role with web identity", err}
+	}
+
+	s.Logger.Info("Successfully assumed role with web identity")
+	return result.Credentials, nil
+}
+
+func GetAWSSignedRequest(s *service.Service, ctx context.Context, serviceAccountToken, awsRoleName, awsAuthMethod string) (*http.Request, error) {
 	s.Logger.Info("running aws assume role auth flow")
 	// get token from metadata service
 	token, err := getToken(s, ctx)
 	if err != nil {
 		return nil, fmt.Errorf("Error getting aws token, %v", err)
 	}
-	// get temp credentials from metadata service
-	tempCredentials, err := getTempCredentials(s, ctx, token, awsRoleName)
-	if err != nil {
-		return nil, fmt.Errorf("GetTempCredentials returned err %v", err)
-	}
-	s.Logger.Info("GetTempCredentials returned code :" + tempCredentials.Code)
-	if tempCredentials.Code != "Success" {
-		return nil, fmt.Errorf("GetTempCredentials failed with retirned code %s", tempCredentials.Code)
-	}
+	var credentials TempCredentials
 
 	// get aws region, failure in this operation will not affect the request signing and we will try and sign with * region
 	region, err := getAWSRegion(s, ctx, token)
@@ -202,12 +239,34 @@ func GetAWSSignedRequest(s *service.Service, ctx context.Context, awsRoleName st
 	} else {
 		s.Logger.Info("Region from SDK :" + region)
 	}
+
+	if awsAuthMethod == "assume_role" {
+		// get temp credentials from metadata service
+		credentials, err = getTempCredentials(s, ctx, token, awsRoleName)
+		if err != nil {
+			return nil, fmt.Errorf("GetTempCredentials returned err %v", err)
+		}
+		s.Logger.Info("GetTempCredentials returned code :" + credentials.Code)
+		if credentials.Code != "Success" {
+			return nil, fmt.Errorf("GetTempCredentials failed with retirned code %s", credentials.Code)
+		}
+	} else {
+		// Get temporary credentials using WebIdentity
+		credentialsWebIdentity, err := GetAWSWebIdentityCredentials(s, ctx, serviceAccountToken, awsRoleName, region)
+		if err != nil {
+			return nil, fmt.Errorf("Error getting web identity credentials: %v", err)
+		}
+		credentials = TempCredentials{AccessKeyId: *credentialsWebIdentity.AccessKeyId,
+			SecretAccessKey: *credentialsWebIdentity.SecretAccessKey,
+			Token:           *credentialsWebIdentity.SessionToken}
+	}
+
 	// getting signed request headers for AWS STS GetCallerIdentity call
 	creds := &signer.AwsCredentials{
-		AccessKey:    tempCredentials.AccessKeyId,
-		SecretKey:    tempCredentials.SecretAccessKey,
+		AccessKey:    credentials.AccessKeyId,
+		SecretKey:    credentials.SecretAccessKey,
 		RegionName:   region,
-		SessionToken: tempCredentials.Token,
+		SessionToken: credentials.Token,
 	}
 	req, err := signer.SignV4a("GET",
 		"https://sts.amazonaws.com?Action=GetCallerIdentity&Version=2011-06-15", "sts", *creds)

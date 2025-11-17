@@ -73,10 +73,10 @@ func StartProvider(ctx context.Context, Version string) {
 
 	go func() {
 		defer wg.Done()
-		autoupdate.AutoUpdate(logs, client, ctx, Version)
+		autoupdate.AutoUpdate(request, logs, client, ctx, Version)
 	}()
 
-	rtUsername, rtToken := cloudProviderAuth(svc, ctx, logs, artifactoryUrl, secretTTL)
+	rtUsername, rtToken := cloudProviderAuth(svc, ctx, logs, artifactoryUrl, secretTTL, request)
 	// rtUsername, rtToken := handleAWSAuth(svc, ctx, logs, awsAuthMethod, awsRoleName, artifactoryUrl, secretTTL)
 	logs.Info("JFrog Username used for pull :" + rtUsername)
 
@@ -122,7 +122,7 @@ func getCloudProvider(svc *service.Service, ctx context.Context, logs *logger.Lo
 	return cloudProvider
 }
 
-func cloudProviderAuth(svc *service.Service, ctx context.Context, logs *logger.Logger, artifactoryUrl string, secretTTL string) (string, string) {
+func cloudProviderAuth(svc *service.Service, ctx context.Context, logs *logger.Logger, artifactoryUrl, secretTTL string, request utils.CredentialProviderRequest) (string, string) {
 	var rtUsername, rtToken string
 
 	cloudProvider := getCloudProvider(svc, ctx, logs)
@@ -130,8 +130,8 @@ func cloudProviderAuth(svc *service.Service, ctx context.Context, logs *logger.L
 	switch cloudProvider {
 	case utils.CloudProviderAWS:
 		logs.Debug("Detected AWS cloud provider")
-		awsAuthMethod, awsRoleName := validateAWSEnvVariables(logs)
-		rtUsername, rtToken = handleAWSAuth(svc, ctx, logs, awsAuthMethod, awsRoleName, artifactoryUrl, secretTTL)
+		awsAuthMethod, awsRoleName := validateAWSEnvVariables(logs, request)
+		rtUsername, rtToken = handleAWSAuth(svc, ctx, logs, awsAuthMethod, awsRoleName, artifactoryUrl, secretTTL, request)
 		return rtUsername, rtToken
 	case utils.CloudProviderAzure:
 		logs.Debug("Detected Azure cloud provider")
@@ -153,7 +153,7 @@ func validateRTRequiredEnvVariables(logs *logger.Logger) string {
 	return artifactoryUrl
 }
 
-func validateAWSEnvVariables(logs *logger.Logger) (string, string) {
+func validateAWSEnvVariables(logs *logger.Logger, request utils.CredentialProviderRequest) (string, string) {
 	awsAuthMethod := os.Getenv("aws_auth_method")
 	if awsAuthMethod == "" {
 		logs.Info("awsAuthMethod not set, will default to Assume role")
@@ -162,14 +162,12 @@ func validateAWSEnvVariables(logs *logger.Logger) (string, string) {
 		logs.Exit("wrong aws_auth_method value :"+awsAuthMethod, 1)
 	}
 
-	// artifactoryUrl := os.Getenv("artifactory_url")
-	// if artifactoryUrl == "" {
-	// 	logs.Exit("ERROR in JFrog Credentials provider, environment vars configured in the plugin: artifactory_url was empty", 1)
-	// } else {
-	// 	logs.Info(fmt.Sprintf("getting envs", "artifactoryUrl", artifactoryUrl))
-	// }
-
 	awsRoleName := os.Getenv("aws_role_name")
+
+	if request.ServiceAccountAnnotations["eks.amazonaws.com/role-arn"] != "" {
+		awsRoleName = request.ServiceAccountAnnotations["eks.amazonaws.com/role-arn"]
+	}
+
 	if awsRoleName == "" {
 		logs.Exit("error in JFrog Credentials provider, environment var: awsRoleName configured in the plugin aws_role_name was empty", 1)
 	} else {
@@ -179,10 +177,21 @@ func validateAWSEnvVariables(logs *logger.Logger) (string, string) {
 	return awsAuthMethod, awsRoleName
 }
 
-func handleAWSAuth(svc *service.Service, ctx context.Context, logs *logger.Logger, awsAuthMethod, awsRoleName, artifactoryUrl, secretTTL string) (string, string) {
+func handleAWSAuth(svc *service.Service, ctx context.Context, logs *logger.Logger, awsAuthMethod, awsRoleName, artifactoryUrl, secretTTL string, request utils.CredentialProviderRequest) (string, string) {
 	var rtUsername, rtToken string
+	var useServiceAccount = false
+
+	if request.ServiceAccountAnnotations["JFrogExchange"] == "true" && request.ServiceAccountAnnotations["eks.amazonaws.com/role-arn"] != "" {
+		useServiceAccount = true
+		awsRoleName = request.ServiceAccountAnnotations["eks.amazonaws.com/role-arn"]
+	}
+
 	if awsAuthMethod == "assume_role" {
-		req, err := handlers.GetAWSSignedRequest(svc, ctx, awsRoleName)
+		if useServiceAccount {
+			awsAuthMethod = "web_identity"
+			logs.Info("Using web_identity aws auth method based on service account annotation")
+		}
+		req, err := handlers.GetAWSSignedRequest(svc, ctx, request.ServiceAccountToken, awsRoleName, awsAuthMethod)
 		if err != nil {
 			logs.Exit("ERROR in JFrog Credentials provider, could not get aws signed request :"+err.Error(), 1)
 		}

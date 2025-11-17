@@ -57,7 +57,7 @@ resource "local_file" "jfrog_provider_oidc" {
 }
 
 resource "local_file" "jfrog_provider_assume_role"  {
-    count = var.authentication_method == "assume_role" && var.enable_aws ? 1 : 0
+    count = var.authentication_method == "assume_role" && var.enable_aws && var.aws_service_token_exchange == false ? 1 : 0
     content = <<-EOT
     {
       "name": "jfrog-credential-provider",
@@ -88,6 +88,45 @@ resource "local_file" "jfrog_provider_assume_role"  {
 
     EOT
     filename = "${path.module}/jfrog/jfrog-provider.json"
+}
+
+resource "local_file" "jfrog_provider_web_identity"  {
+  count = var.authentication_method == "assume_role" && var.enable_aws && var.aws_service_token_exchange ? 1 : 0
+  content = <<-EOT
+    {
+      "name": "jfrog-credential-provider",
+      "matchImages": [
+        "${var.artifactory_glob_pattern}"
+      ],
+      "defaultCacheDuration": "4h",
+      "apiVersion": "credentialprovider.kubelet.k8s.io/v1",
+      "tokenAttributes": {
+           "serviceAccountTokenAudience": "sts.amazonaws.com",
+           "cacheType": "ServiceAccount",
+           "requireServiceAccount": false,
+           "optionalServiceAccountAnnotationKeys": [
+               "eks.amazonaws.com/role-arn",
+               "JFrogExchange"
+           ]
+      },
+      "env": [
+        {
+          "name": "artifactory_url",
+          "value": "${var.artifactory_url}"
+        },
+        {
+          "name": "aws_auth_method",
+          "value": "assume_role"
+        },
+        {
+        "name": "secretTTL",
+        "value": "5h"
+        }
+      ]
+    }
+
+    EOT
+  filename = "${path.module}/jfrog/jfrog-provider.json"
 }
 
 resource "local_file" "jfrog_provider_azure" {
@@ -121,7 +160,11 @@ locals {
         length(local_file.jfrog_provider_oidc) > 0 ? local_file.jfrog_provider_oidc[0].content : ""
     ) : (
         var.authentication_method == "assume_role" ? (
-        length(local_file.jfrog_provider_assume_role) > 0 ? local_file.jfrog_provider_assume_role[0].content : ""
+            var.aws_service_token_exchange && length(local_file.jfrog_provider_web_identity) > 0 ? (
+                local_file.jfrog_provider_web_identity[0].content
+            ) : (
+                length(local_file.jfrog_provider_assume_role) > 0 ? local_file.jfrog_provider_assume_role[0].content : ""
+            )
         ) : ""
     ) ) : ""
 
@@ -135,7 +178,6 @@ module "eks_managed_node_group" {
     for_each = var.enable_aws ? (var.create_eks_node_groups ? { for ng in var.eks_node_group_configuration.node_groups : ng.name => ng } : {}) : {}
     source   = "terraform-aws-modules/eks/aws//modules/eks-managed-node-group"
     version  = "~> 21.0.0"
-
     cluster_name                = var.eks_node_group_configuration.cluster_name
     use_latest_ami_release_version = false
     name                        = each.value.name
@@ -149,6 +191,9 @@ module "eks_managed_node_group" {
     create_iam_role            = false
     iam_role_arn                = var.eks_node_group_configuration.node_role_arn
     vpc_security_group_ids      = each.value.security_group_ids != null ? each.value.security_group_ids : []
+
+    # Use key_name instead of remote_access (for launch template)
+    key_name = each.value.key_name != null ? each.value.key_name : null
 
     pre_bootstrap_user_data = <<-EOF
         echo '${local.jfrog_provider_aws_config_content}' > /etc/eks/image-credential-provider/jfrog-provider.json

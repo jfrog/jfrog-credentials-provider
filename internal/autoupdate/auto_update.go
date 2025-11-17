@@ -26,7 +26,7 @@ import (
 )
 
 // AutoUpdate checks for a new version, downloads, verifies, validates, and replaces the current binary if an update is available.
-func AutoUpdate(logs *logger.Logger, client *http.Client, ctx context.Context, Version string) {
+func AutoUpdate(request utils.CredentialProviderRequest, logs *logger.Logger, client *http.Client, ctx context.Context, Version string) {
 	// check for the environment variable to disable auto-update
 	var autoUpdateDisabled bool
 	autoUpdateDisabled = utils.GetEnvsBool(logs, "disable_provider_autoupdate", false)
@@ -97,7 +97,7 @@ func AutoUpdate(logs *logger.Logger, client *http.Client, ctx context.Context, V
 	}
 
 	// Step 4: Validate the new kubelet binary by using the auth to ping targt artifactory
-	err = validateKubeletBinary(ctx, client, logs, newBinaryPath)
+	err = validateKubeletBinary(ctx, request, client, logs, newBinaryPath)
 	if err != nil {
 		logs.Error("Failed to validate kubelet binary: " + err.Error())
 		runtime.Goexit()
