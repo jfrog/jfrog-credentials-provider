@@ -99,6 +99,66 @@ resource "kubernetes_pod_v1" "busybox_pod" {
   depends_on = [module.create_daemonset_with_plugin_enabled]
 }
 
+resource "kubernetes_service_account_v1" "busybox_sa_wi" {
+  metadata {
+    name      = "busybox-sa-wi"
+    namespace = var.jfrog_namespace
+    annotations = length(aws_iam_role.eks_node_role) > 0 ? {
+      "JFrogExchange" = "true"
+      "eks.amazonaws.com/role-arn" = aws_iam_role.eks_node_role[0].arn
+    } : {
+      "JFrogExchange" = "true"
+    }
+  }
+  depends_on = [
+    aws_iam_role.eks_node_role,
+    null_resource.update_eks_node_role_web_identity,
+    module.manage_eks_nodes_using_jfrog_credential_plugin_web_identity
+  ]
+}
+
+# AWS busybox test pod for node group testing with web identity
+resource "kubernetes_pod_v1" "busybox_pod_wi" {
+  count = var.enable_aws ? 1 : 0
+
+  metadata {
+    name = "busybox-pod-wi"
+    labels = {
+      app = "busybox"
+    }
+    namespace = var.jfrog_namespace
+  }
+
+  spec {
+    service_account_name = kubernetes_service_account_v1.busybox_sa_wi.metadata[0].name
+    toleration {
+      key      = "jfrog-kubelet-oidc-ng"
+      operator = "Equal"
+      value    = "true"
+      effect   = "NoSchedule"
+    }
+    node_selector = {
+      "createdBy": "kubelet-plugin-test-ci",
+      "nodeType": "web-identity"
+    }
+    container {
+      name  = "busybox-container"
+      # TODO Make this dynamic
+      image = "partnership-docker-remote-test.jfrog.io/busybox:latest"
+      command = [
+        "/bin/sh",
+        "-c",
+        "while true; do sleep 3600; done"
+      ]
+    }
+  }
+
+  depends_on = [
+    module.create_daemonset_with_plugin_enabled,
+    kubernetes_service_account_v1.busybox_sa_wi
+  ]
+}
+
 # Azure busybox test pod for DaemonSet testing
 resource "kubernetes_pod_v1" "azure_busybox_pod_ds" {
   count = var.enable_azure ? 1 : 0
