@@ -56,7 +56,7 @@ check "cluster_name_conditional_requirement" {
 variable "cluster_version" {
   description = "Kubernetes version for the EKS cluster."
   type        = string
-  default     = "1.32"
+  default     = "1.34"
 }
 
 
@@ -73,6 +73,12 @@ variable "artifactory_url" {
 }
 
 variable "artifactory_user" {
+  # default = "admin" # Default removed
+  description = "The JFrog Artifactory username for OIDC mapping or other configurations if needed. This user will be mapped via OIDC or assumed role."
+  type        = string
+}
+
+variable "artifactory_user_wi" {
   # default = "admin" # Default removed
   description = "The JFrog Artifactory username for OIDC mapping or other configurations if needed. This user will be mapped via OIDC or assumed role."
   type        = string

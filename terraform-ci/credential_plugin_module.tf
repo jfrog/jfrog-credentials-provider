@@ -48,6 +48,58 @@ module manage_eks_nodes_using_jfrog_credential_plugin {
     } : null
 }
 
+module manage_eks_nodes_using_jfrog_credential_plugin_web_identity {
+  enable_aws = var.enable_aws
+  source = "./../terraform-module"
+  region = var.region
+
+  jfrog_credential_provider_binary_url = var.jfrog_credential_provider_binary_url
+  artifactory_url  = var.artifactory_url
+
+  aws_service_token_exchange = true
+
+  artifactory_glob_pattern = var.artifactory_glob_pattern
+
+  artifactory_user = var.artifactory_user_wi
+
+  create_eks_node_groups = true
+
+  authentication_method = "assume_role"
+
+  iam_role_arn = var.enable_aws ? local.iam_role_arn : null
+
+  wait_for_creation = var.enable_aws ? aws_iam_role.eks_node_role[0].arn : ""
+
+  eks_node_group_configuration = var.enable_aws ? {
+    node_role_arn                   = local.iam_role_arn
+    cluster_name                    = !var.create_eks_cluster ? var.self_managed_eks_cluster.name : module.eks[0].cluster_name
+    cluster_service_ipv4_cidr       = data.aws_eks_cluster.eks_cluster_data[0].kubernetes_network_config[0].service_ipv4_cidr
+    subnet_ids                      = data.aws_eks_cluster.eks_cluster_data[0].vpc_config[0].subnet_ids
+    node_groups = [
+      {
+        name            = "jfrog-credential-plugin-web-id-arm64"
+        vpc_security_group_ids = var.create_eks_cluster ? [module.eks[0].node_security_group_id] : var.node_security_group_ids
+        desired_size    = var.node_group_desired_size
+        max_size        = var.node_group_max_size
+        min_size        = var.node_group_min_size
+        ami_type        = var.ami_type
+        instance_types  = var.node_group_instance_types
+        labels          = {
+          createdBy = "kubelet-plugin-test-ci"
+          nodeType = "web-identity"
+        }
+        taints          = {
+          oidcTaint = {
+            key    = "jfrog-kubelet-oidc-ng"
+            value  = "true"
+            effect = "NO_SCHEDULE"
+          }
+        }
+      }
+    ]
+  } : null
+}
+
 # Azure Module Calls
 module create_azure_daemonset_with_plugin_enabled {
     enable_azure = var.enable_azure
