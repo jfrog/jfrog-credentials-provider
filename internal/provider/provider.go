@@ -105,7 +105,7 @@ func getCloudProvider(svc *service.Service, ctx context.Context, logs *logger.Lo
 	cloudProvider := utils.GetEnvs(logs, "cloud_provider", "")
 	logs.Info("cloud_provider from env:" + cloudProvider)
 	if cloudProvider == "" {
-		// if cloud_provider is not set, check if the cloud provider is AWS or Azure
+		// if cloud_provider is not set, check if the cloud provider is AWS, Azure, or Google
 		isAWS, errAWS := handlers.CheckIfAWS(svc, ctx)
 		if isAWS {
 			cloudProvider = utils.CloudProviderAWS
@@ -114,9 +114,13 @@ func getCloudProvider(svc *service.Service, ctx context.Context, logs *logger.Lo
 		if isAzure {
 			cloudProvider = utils.CloudProviderAzure
 		}
+		isGoogle, errGoogle := handlers.CheckIfGoogle(svc, ctx)
+		if isGoogle {
+			cloudProvider = utils.CloudProviderGoogle
+		}
 
-		if errAWS != nil && errAzure != nil {
-			logs.Exit("ERROR in JFrog Credentials provider, could not check if cloud provider is AWS or Azure", 1)
+		if errAWS != nil && errAzure != nil && errGoogle != nil {
+			logs.Exit("ERROR in JFrog Credentials provider, could not check if cloud provider is AWS, Azure, or Google", 1)
 		}
 	}
 	return cloudProvider
@@ -137,8 +141,12 @@ func cloudProviderAuth(svc *service.Service, ctx context.Context, logs *logger.L
 		logs.Debug("Detected Azure cloud provider")
 		rtUsername, rtToken = handleAzureAuth(svc, ctx, logs, artifactoryUrl)
 		return rtUsername, rtToken
+	case utils.CloudProviderGoogle:
+		logs.Debug("Detected Google cloud provider")
+		rtUsername, rtToken = handleGoogleAuth(svc, ctx, logs, artifactoryUrl)
+		return rtUsername, rtToken
 	default:
-		logs.Exit("ERROR in JFrog Credentials provider, cloud_provider value should be either aws or azure", 1)
+		logs.Exit("ERROR in JFrog Credentials provider, cloud_provider value should be either aws, azure, or google", 1)
 	}
 	return rtUsername, rtToken
 }
@@ -200,12 +208,8 @@ func handleAWSAuth(svc *service.Service, ctx context.Context, logs *logger.Logge
 		if jfrogOidcProviderName == "" || secretName == "" || userPoolName == "" || resourceServerName == "" || scope == "" {
 			logs.Exit("ERROR in JFrog Credentials provider, environment variables missing: jfrog_oidc_provider_name, secret_name, userPoolResourceDomain, userPoolResourceScope", 1)
 		} else {
-			logs.Info(fmt.Sprintf("getting envs",
-				"jfrogOidcProviderName", jfrogOidcProviderName,
-				"secretName", secretName,
-				"userPoolName", userPoolName,
-				"resourceServerName", resourceServerName,
-				"scope", scope))
+			logs.Info(fmt.Sprintf("getting envs - jfrogOidcProviderName: %s, secretName: %s, userPoolName: %s, resourceServerName: %s, scope: %s",
+				jfrogOidcProviderName, secretName, userPoolName, resourceServerName, scope))
 		}
 
 		token, err := handlers.GetAwsOidcToken(svc, ctx, awsRoleName, secretName, userPoolName, resourceServerName, scope)
@@ -243,6 +247,34 @@ func handleAzureAuth(svc *service.Service, ctx context.Context, logs *logger.Log
 
 	// Exchange Azure OIDC token with JFrog Artifactory token
 	rtUsername, rtToken, err := handlers.ExchangeOidcArtifactoryToken(svc, ctx, token, artifactoryUrl, jfrogOidcProviderName, azureAppClientId)
+	if err != nil {
+		logs.Exit("ERROR in JFrog Credentials provider, error in createArtifactoryToken :"+err.Error(), 1)
+	}
+
+	return rtUsername, rtToken
+}
+
+func handleGoogleAuth(svc *service.Service, ctx context.Context, logs *logger.Logger, artifactoryUrl string) (string, string) {
+	// get required env variables
+	googleServiceAccountEmail := utils.GetEnvs(logs, "google_service_account_email", "")
+	jfrogOidcProviderAudience := utils.GetEnvs(logs, "jfrog_oidc_audience", "")
+	jfrogOidcProviderName := utils.GetEnvs(logs, "jfrog_oidc_provider_name", "")
+
+	if googleServiceAccountEmail == "" || jfrogOidcProviderAudience == "" || jfrogOidcProviderName == "" {
+		logs.Exit("ERROR in JFrog Credentials provider, environment variables missing: google_service_account_email, jfrog_oidc_audience, jfrog_oidc_provider_name", 1)
+	} else {
+		logs.Info(fmt.Sprintf("getting envs - googleServiceAccountEmail: %s, jfrogOidcProviderAudience: %s, jfrogOidcProviderName: %s",
+			googleServiceAccountEmail, jfrogOidcProviderAudience, jfrogOidcProviderName))
+	}
+
+	// Get Google OIDC token
+	token, err := handlers.GetGoogleOIDCToken(svc, ctx, googleServiceAccountEmail, jfrogOidcProviderAudience)
+	if err != nil {
+		logs.Exit("ERROR in GetGoogleOIDCToken :"+err.Error(), 1)
+	}
+
+	// Exchange Google OIDC token with JFrog Artifactory token
+	rtUsername, rtToken, err := handlers.ExchangeOidcArtifactoryToken(svc, ctx, token, artifactoryUrl, jfrogOidcProviderName, jfrogOidcProviderAudience)
 	if err != nil {
 		logs.Exit("ERROR in JFrog Credentials provider, error in createArtifactoryToken :"+err.Error(), 1)
 	}

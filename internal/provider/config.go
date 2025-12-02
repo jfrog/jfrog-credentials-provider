@@ -92,6 +92,8 @@ func CreateProviderConfigFromEnv(isYaml bool, providerHome string, providerConfi
 	addEnvVar("user_pool_name", os.Getenv("USER_POOL_NAME"))
 	addEnvVar("user_pool_resource_scope", os.Getenv("USER_POOL_RESOURCE_SCOPE"))
 	addEnvVar("resource_server_name", os.Getenv("RESOURCE_SERVER_NAME"))
+	addEnvVar("google_service_account_email", os.Getenv("GOOGLE_SERVICE_ACCOUNT_EMAIL"))
+	addEnvVar("jfrog_oidc_audience", os.Getenv("JFROG_OIDC_AUDIENCE"))
 
 	// Read MatchImages and DefaultCacheDuration from environment variables
 	matchImages := os.Getenv("MATCH_IMAGES")
@@ -140,7 +142,7 @@ func CreateProviderConfigFromEnv(isYaml bool, providerHome string, providerConfi
 	// Marshal the config to JSON
 	data, err := json.MarshalIndent(providerConfig, "", "  ")
 	if err != nil {
-		logs.Exit(fmt.Sprintf("failed to marshal provider config: %w", err), 1)
+		logs.Exit(fmt.Sprintf("failed to marshal provider config: %v", err), 1)
 	}
 
 	var jfrogConfigFileName string
@@ -151,7 +153,7 @@ func CreateProviderConfigFromEnv(isYaml bool, providerHome string, providerConfi
 	}
 	// Write the JSON to the output file
 	if err := os.WriteFile(jfrogConfigFileName, data, 0644); err != nil {
-		logs.Exit(fmt.Sprintf("failed to write provider config to file: %w", err), 1)
+		logs.Exit(fmt.Sprintf("failed to write provider config to file: %v", err), 1)
 	}
 
 	logs.Info(fmt.Sprintf("Provider config written to %s\n", jfrogConfigFileName))

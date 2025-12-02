@@ -25,8 +25,9 @@ import (
 )
 
 const (
-	CloudProviderAWS   = "aws"
-	CloudProviderAzure = "azure"
+	CloudProviderAWS    = "aws"
+	CloudProviderAzure  = "azure"
+	CloudProviderGoogle = "google"
 )
 
 // CredentialProviderRequest is the request sent by the kubelet.
@@ -248,6 +249,10 @@ func ValidateJfrogProviderConfig(config Provider, cloudProvider string) error {
 	case CloudProviderAzure:
 		if GetEnvVarValue(config.Env, "azure_app_client_id") == "" || GetEnvVarValue(config.Env, "azure_tenant_id") == "" || GetEnvVarValue(config.Env, "azure_app_audience") == "" || GetEnvVarValue(config.Env, "azure_nodepool_client_id") == "" || GetEnvVarValue(config.Env, "jfrog_oidc_provider_name") == "" {
 			return fmt.Errorf("ERROR in JFrog Credentials provider, environment variables missing: azure_app_client_id, azure_tenant_id, azure_app_audience, azure_nodepool_client_id, jfrog_oidc_provider_name")
+		}
+	case CloudProviderGoogle:
+		if GetEnvVarValue(config.Env, "google_service_account_email") == "" || GetEnvVarValue(config.Env, "jfrog_oidc_provider_name") == "" || GetEnvVarValue(config.Env, "jfrog_oidc_audience") == "" {
+			return fmt.Errorf("ERROR in JFrog Credentials provider, environment variables missing: google_service_account_email, jfrog_oidc_provider_name, jfrog_oidc_audience")
 		}
 	}
 	return nil
