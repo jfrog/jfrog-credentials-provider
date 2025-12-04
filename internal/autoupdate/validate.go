@@ -35,11 +35,20 @@ type EnvVar struct {
 }
 
 type Provider struct {
-	Name                 string   `json:"name"`
-	MatchImages          []string `json:"matchImages"`
-	DefaultCacheDuration string   `json:"defaultCacheDuration"`
-	ApiVersion           string   `json:"apiVersion"`
-	Env                  []EnvVar `json:"env"`
+	Name                 string          `json:"name"`
+	MatchImages          []string        `json:"matchImages"`
+	DefaultCacheDuration string          `json:"defaultCacheDuration"`
+	ApiVersion           string          `json:"apiVersion"`
+	Env                  []EnvVar        `json:"env"`
+	TokenAttributes      TokenAttributes `json:"tokenAttributes,omitempty"`
+}
+
+type TokenAttributes struct {
+	ServiceAccountTokenAudience          string   `json:"serviceAccountTokenAudience,omitempty"`
+	CacheType                            string   `json:"cacheType,omitempty"`
+	RequireServiceAccount                bool     `json:"requireServiceAccount"`
+	RequiredServiceAccountAnnotationKeys []string `json:"requiredServiceAccountAnnotationKeys,omitempty"`
+	OptionalServiceAccountAnnotationKeys []string `json:"optionalServiceAccountAnnotationKeys,omitempty"`
 }
 
 type CredentialProviderConfig struct {
@@ -92,12 +101,17 @@ func loadProviderEnvsFromFile(logs *logger.Logger, configPath string, targetProv
 }
 
 // createRequestJson creates a JSON request for the credential provider using the given Artifactory URL.
-func createRequestJson(logs *logger.Logger, artifactoryUrl string) ([]byte, error) {
+func createRequestJson(logs *logger.Logger, artifactoryUrl string, request utils.CredentialProviderRequest) ([]byte, error) {
 
 	jsonReq := utils.CredentialProviderRequest{
 		ApiVersion: "credentialutils.kubelet.k8s.io/v1",
 		Kind:       "CredentialProviderRequest",
 		Image:      artifactoryUrl,
+	}
+
+	if request.ServiceAccountAnnotations["JFrogExchange"] == "true" && request.ServiceAccountAnnotations["eks.amazonaws.com/role-arn"] != "" {
+		jsonReq.ServiceAccountToken = request.ServiceAccountToken
+		jsonReq.ServiceAccountAnnotations = request.ServiceAccountAnnotations
 	}
 
 	jsonBytes, err := json.Marshal(jsonReq)
@@ -192,7 +206,7 @@ func validateAuthWithArtifactory(ctx context.Context, client *http.Client, logs 
 }
 
 // validateKubeletBinary validates the new binary by running it and checking its response and authenticating with target artifactory.
-func validateKubeletBinary(ctx context.Context, client *http.Client, logs *logger.Logger, newBinaryPath string) error {
+func validateKubeletBinary(ctx context.Context, request utils.CredentialProviderRequest, client *http.Client, logs *logger.Logger, newBinaryPath string) error {
 	if _, err := os.Stat(newBinaryPath); os.IsNotExist(err) {
 		logs.Error("Error: New binary does not exist at path: " + newBinaryPath)
 		return err
@@ -211,7 +225,7 @@ func validateKubeletBinary(ctx context.Context, client *http.Client, logs *logge
 		return err
 	}
 
-	providerRequest, err := createRequestJson(logs, artifactoryUrl)
+	providerRequest, err := createRequestJson(logs, artifactoryUrl, request)
 	if err != nil {
 		return err
 	}

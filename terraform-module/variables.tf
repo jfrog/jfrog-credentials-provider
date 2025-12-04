@@ -41,7 +41,10 @@ variable "eks_node_group_configuration" {
         key    = string
         value  = string
         effect = string
-      })), {}) 
+      })), {})
+
+      # Change from remote_access to key_name (for launch template)
+      key_name = optional(string, null)
     }))
   })
 
@@ -221,6 +224,12 @@ variable "iam_role_arn" {
   description = "The ARN of the IAM role to be used by Jfrog Credential Provider"
   type        = string
   default     = null  
+}
+
+variable "aws_service_token_exchange" {
+  description = "Flag to use web Identity token of Service Account in AWS."
+  type        = bool
+  default     = false
 }
 
 # Container Images

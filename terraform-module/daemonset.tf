@@ -52,7 +52,7 @@ resource "kubernetes_config_map" "jfrog_credential_provider_bootstrap" {
 resource "kubernetes_config_map" "jfrog_credential_provider_config" {
 
     count = var.enable_aws || var.enable_azure ? (var.jfrog_credential_plugin_daemonset_installation ? 1 : 0) : 0
-    depends_on = [ kubernetes_namespace.jfrog_namespace, local_file.jfrog_provider_oidc, local_file.jfrog_provider_assume_role, local_file.jfrog_provider_azure ]
+    depends_on = [ kubernetes_namespace.jfrog_namespace, local_file.jfrog_provider_oidc, local_file.jfrog_provider_assume_role, local_file.jfrog_provider_web_identity, local_file.jfrog_provider_azure ]
     metadata {
         name = "jfrog-credential-provider-config"
         namespace = var.daemonset_configuration.jfrog_namespace
