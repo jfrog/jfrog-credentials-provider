@@ -113,7 +113,7 @@ module "ebs_csi_irsa_role" {
     count = var.enable_aws && var.create_eks_cluster ? 1 : 0
     source = "terraform-aws-modules/iam/aws//modules/iam-role-for-service-accounts"
 
-    name             = "ebs-csi-role-${local.cluster_name}-${var.region}"
+    name             = "ebs-csi-role-${var.region}"
     attach_ebs_csi_policy = true
 
     oidc_providers = {
