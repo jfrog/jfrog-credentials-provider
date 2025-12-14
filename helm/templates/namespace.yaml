@@ -1,0 +1,9 @@
+{{- if not (lookup "v1" "Namespace" "" (include "jfrog-credential-provider.namespace" .)) }}
+apiVersion: v1  
+kind: Namespace
+metadata:
+  name: {{ include "jfrog-credential-provider.namespace" . }}
+  labels:
+    {{- include "jfrog-credential-provider.labels" . | nindent 4 }}
+{{- end }}
+

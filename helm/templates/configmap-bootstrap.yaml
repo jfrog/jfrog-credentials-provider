@@ -1,0 +1,109 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "jfrog-credential-provider.fullname" . }}-bootstrap
+  namespace: {{ include "jfrog-credential-provider.namespace" . }}
+data:
+  bootstrap.sh: |
+    #!/bin/bash
+
+    # This script will download the jfrog-credential-provider and setup the needed configuration.
+    log () {
+        echo "[$(date +"%Y-%m-%d %H:%M:%S")] $1"
+    }
+
+    log "Startup of the JFrog Credential Plugin injector"
+
+    {{ $cloudProvider := include "jfrog-credential-provider.cloudProvider" . }}
+    {{ if eq $cloudProvider "aws" }}
+    # Needed for nsenter, since nsenter will mount the host filesystem to /host
+    export KUBELET_MOUNT_PATH="/host"
+    # Used to download the jfrog-credential-provider binary to this directory
+    export JFROG_CREDENTIAL_PROVIDER_BINARY_DIR="${KUBELET_MOUNT_PATH}/etc/eks/image-credential-provider"
+    # Path to kubelet credential provider config file
+    export KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH="${KUBELET_MOUNT_PATH}/etc/eks/image-credential-provider/config.json"
+
+    {{ else if eq $cloudProvider "azure" }}
+    export KUBELET_MOUNT_PATH=""
+    export JFROG_CREDENTIAL_PROVIDER_BINARY_DIR="/var/lib/kubelet/credential-provider"
+    export KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH="/var/lib/kubelet/credential-provider-config.yaml"
+
+    {{ else if eq $cloudProvider "gcp" }}
+    export KUBELET_MOUNT_PATH="/host"
+    export JFROG_CREDENTIAL_PROVIDER_BINARY_DIR="${KUBELET_MOUNT_PATH}/home/kubernetes/bin"
+    export KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH="${KUBELET_MOUNT_PATH}/etc/srv/kubernetes/cri_auth_config.yaml"
+    {{ end }}
+
+
+    JFROG_CONFIG_FILE="jfrog-provider"
+
+    export KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR=$(dirname ${KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH})
+
+    # to figure out if it's yaml or json
+    export KUBELET_CREDENTIAL_PROVIDER_CONFIG_FILE_NAME=$(basename ${KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH})
+
+    log "The current kubelet configuration at ${KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH}:"
+    cat ${KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH}
+
+    # Find the architecture of the machine
+    ARCH=$(uname -m)
+    ARCH_SUFFIX="amd64"
+    if [ "$ARCH" = "x86_64" ]; then
+        ARCH_SUFFIX="amd64"
+    elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+        ARCH_SUFFIX="arm64"
+    fi
+    export JFROG_CREDENTIAL_PROVIDER_BINARY_URL="${JFROG_CREDENTIAL_PROVIDER_BINARY_URL}-${ARCH_SUFFIX}"
+
+    # Pull the jfrog-credential-provider binary
+    echo "Downloading the jfrog-credential-provider binary (${JFROG_CREDENTIAL_PROVIDER_BINARY_URL})"
+    curl -L -f -o ${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/jfrog-credential-provider "${JFROG_CREDENTIAL_PROVIDER_BINARY_URL}"
+
+    if [[ $? -ne 0 ]]; then
+        echo "Downloading (${JFROG_CREDENTIAL_PROVIDER_BINARY_URL}) failed"
+
+        # Wait and exit to allow pod to restart (ugly yet simple solution for when the cluster DNS service is not ready yet)
+        log "Sleeping for 10 seconds before exiting"
+        sleep 10
+        exit 1
+    else
+        echo "Successfully downloaded the jfrog-credential-provider binary from Artifactory"
+        # Make the binary executable
+        echo "Making the jfrog-credential-provider binary executable"
+        chmod +x ${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/jfrog-credential-provider
+
+        # if extension is yaml, set --yaml flag
+        if [[ ${KUBELET_CREDENTIAL_PROVIDER_CONFIG_FILE_NAME} == *.yaml ]]; then
+            echo "Copying the /etc/${JFROG_CONFIG_FILE}.yaml configuration file to ${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}/${JFROG_CONFIG_FILE}.yaml"
+            cp -f "/etc/${JFROG_CONFIG_FILE}.yaml" "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}/${JFROG_CONFIG_FILE}.yaml"
+            sleep 2 # Wait a bit to ensure the file is copied before proceeding
+            nsenter -t 1 -m -p -- ${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/jfrog-credential-provider add-provider-config --yaml --provider-home "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}" --provider-config "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_FILE_NAME}"
+        else
+            echo "Copying the  /etc/${JFROG_CONFIG_FILE}.json configuration file to ${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}/${JFROG_CONFIG_FILE}.json"
+            cp -f "/etc/${JFROG_CONFIG_FILE}.json" "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}/${JFROG_CONFIG_FILE}.json"
+            sleep 2 # Wait a bit to ensure the file is copied before proceeding
+            nsenter -t 1 -m -p -- ${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/jfrog-credential-provider add-provider-config --provider-home "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}" --provider-config "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_FILE_NAME}"
+        fi
+
+        if [[ $? -ne 0 ]]; then
+            echo "Updating the kubelet configuration failed"
+            exit 1
+        fi
+
+        log "The final ${KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH}:"
+        cat ${KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH}
+    fi
+
+    log "Done updating the kubelet config.json"
+
+
+    log "See kubelet service status"
+    nsenter -t 1 -m -p -- systemctl status kubelet
+
+    log "Restarting the kubelet service"
+    nsenter -t 1 -m -p -- systemctl restart kubelet
+
+    sleep 5
+    log "See new kubelet service status"
+    nsenter -t 1 -m -p -- systemctl status kubelet
+

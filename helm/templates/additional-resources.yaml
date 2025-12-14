@@ -1,0 +1,4 @@
+{{- if .Values.additionalResources }}
+{{- .Values.additionalResources }}
+{{- end }}
+

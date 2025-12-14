@@ -1,0 +1,124 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ include "jfrog-credential-provider.fullname" . }}-daemonset
+  namespace: {{ include "jfrog-credential-provider.namespace" . }}
+  labels:
+    {{- include "jfrog-credential-provider.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "jfrog-credential-provider.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+    ## Active choice to not auto-restart if something changed in the configmap
+    ## Since this changes the node, it should be done manually
+      labels:
+        {{- include "jfrog-credential-provider.selectorLabels" . | nindent 8 }}
+    spec:
+      hostPID: true
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+      {{- end }}
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{ include "jfrog-credential-provider.serviceAccountName" . }}
+      automountServiceAccountToken: true
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: jfrog-credential-provider-injector
+          image: {{ include "jfrog-credential-provider.initContainerImage" . }}
+          {{- if .Values.initContainer.image.imagePullSecrets }}
+          imagePullSecrets:
+            {{- range .Values.initContainer.image.imagePullSecrets }}
+            - name: {{ . }}
+            {{- end }}
+          {{- end }}
+          imagePullPolicy: {{ .Values.initContainer.image.pullPolicy }}
+          env:
+            - name: JFROG_CREDENTIAL_PROVIDER_BINARY_URL
+              value: {{ .Values.downloadUrl | quote }}
+          command:
+            - /bin/bash
+            - -c
+            - ". /bin/bootstrap.sh"
+          securityContext:
+            privileged: true
+          volumeMounts:
+          {{- $cloudProvider := include "jfrog-credential-provider.cloudProvider" . }}
+            {{- if or $cloudProvider "aws" "gcp" }}
+            - mountPath: /host
+              name: host
+            {{- else if $cloudProvider "azure" }}
+            - mountPath: /var/lib/kubelet
+              name: kubelet
+            {{- end }}
+            - mountPath: /bin/bootstrap.sh
+              subPath: bootstrap.sh
+              name: {{ include "jfrog-credential-provider.fullname" . }}-bootstrap
+            {{- if eq $cloudProvider "aws" }}
+            - mountPath: /etc/jfrog-provider.json
+              subPath: jfrog-provider.json
+              name: {{ include "jfrog-credential-provider.fullname" . }}-config
+            {{- else }}
+            - mountPath: /etc/jfrog-provider.yaml
+              subPath: jfrog-provider.yaml
+              name: {{ include "jfrog-credential-provider.fullname" . }}-config
+            {{- end }}
+            {{- if .Values.customVolumeMounts }}
+            {{- .Values.customVolumeMounts | nindent 12 }}
+            {{- end }}
+          {{- with .Values.initContainer.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      containers:
+        - name: jfrog-credential-provider-injector-pause
+          image: {{ include "jfrog-credential-provider.pauseImage" . }}
+          {{- if .Values.image.imagePullSecrets }}
+          imagePullSecrets:
+            {{- range .Values.image.imagePullSecrets }}
+            - name: {{ . }}
+            {{- end }}
+          {{- end }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        {{- if eq $cloudProvider "aws" }}
+        - name: host
+          hostPath:
+            path: /
+            type: Directory
+        {{- else }}
+        {{- if eq $cloudProvider "azure" }}
+        - name: kubelet
+          hostPath:
+            path: /var/lib/kubelet
+            type: Directory
+          {{- end }}
+        {{- end }}
+        - name: {{ include "jfrog-credential-provider.fullname" . }}-bootstrap
+          configMap:
+            name: {{ include "jfrog-credential-provider.fullname" . }}-bootstrap
+        - name: {{ include "jfrog-credential-provider.fullname" . }}-config
+          configMap:
+            name: {{ include "jfrog-credential-provider.fullname" . }}-config
+        {{- if .Values.customVolumes }}
+        {{- .Values.customVolumes | nindent 8 }}
+        {{- end }}
+      terminationGracePeriodSeconds: 5
+

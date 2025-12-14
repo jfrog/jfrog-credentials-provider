@@ -1,0 +1,18 @@
+{{- if .Values.rbac.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "jfrog-credential-provider.fullname" . }}
+  namespace: {{ include "jfrog-credential-provider.namespace" . }}
+  labels:
+    {{- include "jfrog-credential-provider.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "jfrog-credential-provider.fullname" . }}
+subjects:
+  - kind: Group
+    name: system:nodes
+    apiGroup: rbac.authorization.k8s.io
+{{- end }}
+
