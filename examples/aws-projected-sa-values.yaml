@@ -1,0 +1,26 @@
+providerConfig:
+  - name: jfrog-credentials-provider
+    artifactoryUrl: "<artifactory-url>"
+    matchImages:
+      - "*.<test.your-org.domain.io>"
+    defaultCacheDuration: 5h
+    aws:
+      enabled: true
+      aws_auth_method: "assume_role"
+      aws_role_name: "<test-role-arn>"
+    
+    tokenAttributes:
+      enabled: true
+
+rbac:
+  create: true
+
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+            - key: credentialsProviderEnabled
+              operator: In
+              values:
+                - "true"
+

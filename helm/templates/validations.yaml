@@ -1,0 +1,60 @@
+ {{/* Checks if there is at least one cloud provider enabled in at least one providerConfig */}}
+ {{/* If not, it will fail the installation */}}
+{{- $hasEnabledProvider := false }}
+{{- range .Values.providerConfig }}
+  {{- if or (and .aws .aws.enabled) (and .azure .azure.enabled) (and .gcp .gcp.enabled) }}
+    {{- $hasEnabledProvider = true }}
+  {{- end }}
+{{- end }}
+{{- if not $hasEnabledProvider }}
+{{- $errorMsg := "\nERROR: At least one cloud provider must be enabled in providerConfig.\n" }}
+{{- $errorMsg = printf "%s\nPlease enable one of the following:\n" $errorMsg }}
+{{- $errorMsg = printf "%s  - providerConfig[].aws.enabled = true\n" $errorMsg }}
+{{- $errorMsg = printf "%s  - providerConfig[].azure.enabled = true\n" $errorMsg }}
+{{- $errorMsg = printf "%s  - providerConfig[].gcp.enabled = true\n" $errorMsg }}
+{{- $errorMsg = printf "%s\nExample:\n" $errorMsg }}
+{{- $errorMsg = printf "%s  providerConfig:\n" $errorMsg }}
+{{- $errorMsg = printf "%s    - name: jfrog-credentials-provider\n" $errorMsg }}
+{{- $errorMsg = printf "%s      aws:\n" $errorMsg }}
+{{- $errorMsg = printf "%s        enabled: true\n" $errorMsg }}
+{{- fail $errorMsg }}
+{{- end }}
+
+{{/* Only one cloud provider can be enabled at a time for each providerConfig */}}
+{{- range .Values.providerConfig }}
+  {{- $enabledCount := 0 }}
+  {{- if and .aws .aws.enabled }}{{ $enabledCount = add $enabledCount 1 }}{{- end }}
+  {{- if and .azure .azure.enabled }}{{ $enabledCount = add $enabledCount 1 }}{{- end }}
+  {{- if and .gcp .gcp.enabled }}{{ $enabledCount = add $enabledCount 1 }}{{- end }}
+  {{- if gt $enabledCount 1 }}
+    {{- $errorMsg := "\nERROR: Only one cloud provider can be enabled at the same time for each providerConfig.\n" }}
+    {{- $errorMsg = printf "%sCurrent providerConfig '%s' has %d cloud providers enabled.\n" $errorMsg .name $enabledCount }}
+    {{- $errorMsg = printf "%sPlease enable only one of: aws, azure, or gcp.\n" $errorMsg }}
+    {{- fail $errorMsg }}
+  {{- end }}
+{{- end }}
+
+{{/* If more than one providerConfig is enabled, check that the cloud providers are same for each providerConfig */}}
+{{- $firstProviderType := "" }}
+{{- $firstProviderName := "" }}
+{{- range .Values.providerConfig }}
+  {{- $currentProviderType := "" }}
+  {{- if and .aws .aws.enabled }}{{ $currentProviderType = "aws" }}{{- end }}
+  {{- if and .azure .azure.enabled }}{{ $currentProviderType = "azure" }}{{- end }}
+  {{- if and .gcp .gcp.enabled }}{{ $currentProviderType = "gcp" }}{{- end }}
+  {{- if $currentProviderType }}
+    {{- if and $firstProviderType (ne $firstProviderType $currentProviderType) }}
+      {{- $errorMsg := "\nERROR: All providerConfig entries must use the same cloud provider.\n" }}
+      {{- $errorMsg = printf "%sFound conflicting providers:\n" $errorMsg }}
+      {{- $errorMsg = printf "%s  - '%s' uses '%s'\n" $errorMsg $firstProviderName $firstProviderType }}
+      {{- $errorMsg = printf "%s  - '%s' uses '%s'\n" $errorMsg .name $currentProviderType }}
+      {{- $errorMsg = printf "%s\nAll providerConfig entries must use the same cloud provider type.\n" $errorMsg }}
+      {{- fail $errorMsg }}
+    {{- end }}
+    {{- if not $firstProviderType }}
+      {{- $firstProviderType = $currentProviderType }}
+      {{- $firstProviderName = .name }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+
