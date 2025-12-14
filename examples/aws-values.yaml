@@ -1,0 +1,27 @@
+providerConfig:
+  - name: jfrog-credentials-provider
+    artifactoryUrl: <artifactory-url>
+    matchImages:
+      - "*.<test.your-org.domain.io>"
+    defaultCacheDuration: 5h
+    aws:
+      enabled: true
+      aws_auth_method: "assume_role"
+      aws_role_name: "<test-role-arn>"
+
+
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/arch
+              operator: In
+              values:
+                - amd64
+                - arm64
+            - key: credentialsProviderEnabled
+              operator: In
+              values:
+                - "true"
+

@@ -1,0 +1,22 @@
+providerConfig:
+  - name: jfrog-credentials-provider
+    artifactoryUrl: <artifactory-url>
+    matchImages:
+      - "*.<test.your-org.domain.io>"
+    defaultCacheDuration: 5h
+    gcp:
+      enabled: true
+      google_service_account_email: "<google-service-account-email>"
+      jfrog_oidc_audience: "<project-id>"
+      jfrog_oidc_provider_name: "<jfrog-oidc-provider-name>"
+
+
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+            - key: credentialsProviderEnabled
+              operator: In
+              values:
+                - "true"
+

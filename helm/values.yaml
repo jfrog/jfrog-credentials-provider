@@ -1,0 +1,118 @@
+# Default values for jfrog-credential-provider
+# This is a YAML-formatted file.
+
+# Download URL for the credential provider binary
+# The chart will automatically append the architecture suffix (-amd64 or -arm64)
+downloadUrl: "https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/0.1.0-beta.2/jfrog-credential-provider-linux"
+
+# Affinity rules for pod scheduling
+affinity: {}
+
+# Tolerations for pod scheduling
+tolerations: []
+
+# Additional labels to apply to all resources
+labels: {}
+
+# Resources for the pause container
+resources: {}
+
+# Enable automatic upgrade of the credential provider binary
+autoUpgrade: false
+
+# Init container configuration
+initContainer:
+  image:
+    registry: releases-docker.jfrog.io
+    repository: jfrog/alpine-with-tools
+    tag: "3.21.0"
+    # digest: sha256:...
+    pullPolicy: IfNotPresent
+    imagePullSecrets: []
+  resources: {}
+
+# Pause container image configuration
+image:
+  registry: releases-docker.jfrog.io
+  repository: pause
+  tag: "3.7"
+  # digest: sha256:...
+  pullPolicy: IfNotPresent
+  imagePullSecrets: []
+
+# RBAC configuration
+# Note: RBAC is only required for AWS when using service account token projection (KEP 4412)
+# The chart will automatically create RBAC resources only when AWS and rbac.create is true
+rbac:
+  create: false  # Set to true to enable RBAC (only needed for AWS with tokenAttributes enabled)
+  role:
+    ## Rules to create. It follows the role specification
+    # This applies to the subject system:nodes
+    # Required for AWS IRSA (IAM Roles for Service Accounts) with service account token projection
+    additionalRules: []
+
+# Custom volumes to add to the daemonset
+customVolumes: |
+
+# Custom volume mounts to add to the init container
+customVolumeMounts: |
+
+## Allows to add additional kubernetes resources
+## Use --- as a separator between multiple resources
+additionalResources: |
+
+# Provider configuration
+# Supports multiple providers, each with cloud-specific settings
+providerConfig:
+  - name: jfrog-credentials-provider
+    artifactoryUrl: your-org.jfrog.io
+    matchImages:
+      - "*.jfrog.io"
+    defaultCacheDuration: 15m
+    # KEP 4412: Service Account Token Projection
+    # Enable service account token projection for this provider
+    # Only supported for AWS at the moment
+    tokenAttributes:
+      enabled: false
+    # AWS configuration
+    aws:
+      enabled: false
+      aws_auth_method: "assume_role"  # Options: "assume_role" or "cognito_oidc"
+      aws_role_name: "dummy"
+      # For OIDC method, additional variables can be added here
+      # aws_cognito_user_pool_secret_name: ""
+      # aws_cognito_user_pool_name: ""
+      # aws_cognito_user_pool_id: ""
+      # aws_cognito_user_pool_client_id: ""
+      # aws_cognito_user_pool_domain_name: ""
+      # aws_cognito_resource_server_name: ""
+      # jfrog_oidc_provider_name: ""
+    # GCP configuration
+    gcp:
+      enabled: false
+      # GCP-specific environment variables
+      # google_service_account_email: ""
+      # jfrog_oidc_audience: ""
+      # jfrog_oidc_provider_name: ""
+    # Azure configuration
+    azure:
+      enabled: false
+      azure_app_client_id: ""
+      azure_tenant_id: ""
+      azure_app_audience: ""
+      jfrog_oidc_provider_name: ""
+      azure_nodepool_client_id: ""
+
+
+# Node selector for daemonset
+nodeSelector: {}
+
+# Priority class name for the daemonset
+priorityClassName: ""
+
+# Service account configuration
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
