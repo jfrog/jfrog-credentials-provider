@@ -1,4 +1,15 @@
+⚠️ **DEPRECATED** - This Terraform module is deprecated and will no longer be maintained.
+
+We recommend using the **Helm chart** deployment method instead. For deployment instructions, please refer to the cloud provider-specific guides in the main repository:
+- [AWS Setup Guide](../AWS.md)
+- [Azure Setup Guide](../AZURE.md)
+- [GCP Setup Guide](../GCP.md)
+
+---
+
 # JFrog Kubelet Credential Provider Terraform Module
+
+**⚠️ This module is deprecated. Please use Helm charts for new deployments.**
 
 This Terraform module sets up the JFrog Kubelet Credential Provider for Kubernetes clusters running on AWS and Azure.It supports two authentication methods (`cognito_oidc` and `assume_role`) for AWS, and Azure App for azure (OIDC) and offers flexible deployment methods to suit various infrastructure requirements.
 
