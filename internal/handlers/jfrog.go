@@ -88,9 +88,9 @@ func ExchangeOidcArtifactoryToken(s *service.Service, ctx context.Context,
 
 func ExchangeAssumedRoleArtifactoryToken(s *service.Service, ctx context.Context, request *http.Request, artifactoryUrl string, secretTTL string) (string, string, error) {
 	url := fmt.Sprintf("%s%s%s", "https://", artifactoryUrl, AWS_TOKEN_ENDPOINT)
-	s.Logger.Info("RT token url :" + url)
+	s.Logger.Info("RT token url: " + url)
 	requestBody := fmt.Sprintf("%s%s%s", "{\"expires_in\": ", secretTTL, "}")
-	s.Logger.Info("RT requestBody :" + requestBody)
+	s.Logger.Info("RT requestBody: " + requestBody)
 	body := []byte(requestBody)
 
 	resp, err := utils.HttpReq(s, ctx, url, body, request)

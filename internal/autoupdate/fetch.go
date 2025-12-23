@@ -138,7 +138,7 @@ func downloadReleaseArtifacts(ctx context.Context, logs *logger.Logger, client *
 		return err
 	}
 	// req.Header.Set("Accept", "application/octet-stream")
-	logs.Info("Downloading release artifact : " + downloadUrl)
+	logs.Info("Downloading release artifact: " + downloadUrl)
 
 	response, err := client.Do(req)
 	if err != nil {
