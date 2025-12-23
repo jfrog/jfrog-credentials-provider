@@ -38,7 +38,7 @@ Irrespective of the deployment method you decide, these variables are required b
 enable_aws = true
 artifactory_url = "myart.jfrog.io"
 artifactory_user = "aws-eks-user"
-// This should be mapped to artifactory user or the OIDC provider
+// This should be mapped to Artifactory user or the OIDC provider
 iam_role_arn = "<ARN>"
 ```
 
