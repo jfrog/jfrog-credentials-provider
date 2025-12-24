@@ -19,6 +19,7 @@ affinity:
   nodeAffinity:
     requiredDuringSchedulingIgnoredDuringExecution:
       nodeSelectorTerms:
+        - matchExpressions:
             - key: credentialsProviderEnabled
               operator: In
               values:
