@@ -291,12 +291,24 @@ After completing the setup, you should have the following values:
 
 ### 📦 Install with Helm
 
+#### Add JFrog Helm repository
+
+Before installing JFrog helm charts, you need to add the [JFrog helm repository](https://charts.jfrog.io/) to your helm client
+
+```bash
+helm repo add jfrog https://charts.jfrog.io
+help repo update
+```
+
+And then install using the following command - 
+
 ```bash
 # Install the credential provider
-helm install jfrog-credential-provider ./helm \
+helm upgrade --install secret-provider jfrog/jfrog-credential-provider \
   --namespace jfrog \
   --create-namespace \
-  -f ./examples/gcp-values.yaml
+  -f ./examples/gcp-values.yaml --devel
+
 ```
 
 ---

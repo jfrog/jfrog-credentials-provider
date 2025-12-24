@@ -636,12 +636,24 @@ Update the values file at `./examples/aws-projected-sa-values.yaml` with your co
 
 ### 📦 Install with Helm
 
+
+#### Add JFrog Helm repository
+
+Before installing JFrog helm charts, you need to add the [JFrog helm repository](https://charts.jfrog.io/) to your helm client
+
+```bash
+helm repo add jfrog https://charts.jfrog.io
+help repo update
+```
+
+And then install using the following command - 
+
 ```bash
 # Install the credential provider
-helm install jfrog-credential-provider ./helm \
+helm upgrade --install secret-provider jfrog/jfrog-credential-provider \
   --namespace jfrog \
   --create-namespace \
-  -f ./examples/aws-values.yaml
+  -f ./examples/aws-values.yaml --devel
 
 ```
 
@@ -649,10 +661,10 @@ OR
 
 ```bash
 # Install the credential provider
-helm install jfrog-credential-provider ./helm \
+helm upgrade --install secret-provider jfrog/jfrog-credential-provider \
   --namespace jfrog \
   --create-namespace \
-  -f ./examples/aws-projected-sa-values.yaml
+  -f ./examples/aws-projected-sa-values.yaml --devel
 
 ```
 
