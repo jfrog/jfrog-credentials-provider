@@ -21,6 +21,7 @@ import (
 	"jfrog-credential-provider/internal/logger"
 	"math/big"
 	"os"
+	"slices"
 	"strconv"
 
 	"gopkg.in/yaml.v3"
@@ -183,32 +184,35 @@ func MergeFiles(file1, file2, outputFile string, isYaml, dryRun bool, logs *logg
 	// Add the new provider to the config
 	if !providerExist {
 		config.Providers = append(config.Providers, provider)
-
-		// Write the merged config to the output file
-		var mergedData []byte
-		var err error
-		if isYaml {
-			mergedData, err = yaml.Marshal(&config)
-		} else {
-			mergedData, err = json.MarshalIndent(&config, "", "  ")
-		}
-		if err != nil {
-			return fmt.Errorf("failed to marshal merged config: %w", err)
-		}
-
-		if dryRun {
-			logs.Info("Dry run: Below config would be written to " + outputFile)
-			logs.Info(string(mergedData))
-			return nil
-		}
-
-		if err := os.WriteFile(outputFile, mergedData, 0644); err != nil {
-			return fmt.Errorf("failed to write output file: %w", err)
-		}
-		logs.Info("Merged config written to " + outputFile)
 	} else {
-		logs.Info("Provider with same artifactory url already exists. Skipping addition.")
+		// Delete the existing provider with the same artifactory url
+		config.Providers = slices.DeleteFunc(config.Providers, func(p Provider) bool {
+			return GetEnvVarValue(p.Env, "artifactory_url") == GetEnvVarValue(provider.Env, "artifactory_url")
+		})
+		// Add the new provider to the config
+		config.Providers = append(config.Providers, provider)
 	}
+	var mergedData []byte
+	var err error
+	if isYaml {
+		mergedData, err = yaml.Marshal(&config)
+	} else {
+		mergedData, err = json.MarshalIndent(&config, "", "  ")
+	}
+	if err != nil {
+		return fmt.Errorf("failed to marshal merged config: %w", err)
+	}
+
+	if dryRun {
+		logs.Info("Dry run: Below config would be written to " + outputFile)
+		logs.Info(string(mergedData))
+		return nil
+	}
+
+	if err := os.WriteFile(outputFile, mergedData, 0644); err != nil {
+		return fmt.Errorf("failed to write output file: %w", err)
+	}
+	logs.Info("Merged config written to " + outputFile)
 	return nil
 }
 
