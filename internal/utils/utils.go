@@ -248,10 +248,13 @@ func MergeFiles(file1, file2, outputFile string, isYaml, dryRun bool, logs *logg
 		return err
 	}
 
-	// Read and parse the second file
-	var provider Provider
-	if err := ReadFile(file2, isYaml, &provider, cloudProvider); err != nil {
-		return err
+	// Read the provider of arrays
+	var providersArray []Provider
+	var mergeErr error
+	var mergedData []byte
+	data, err := os.ReadFile(file2)
+	if err != nil {
+		return fmt.Errorf("failed to read file %s: %w", file2, err)
 	}
 
 	providerExist := checkProviderExists(config.Providers, provider)
