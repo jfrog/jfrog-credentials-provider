@@ -1,0 +1,26 @@
+providerConfig:
+  - name: jfrog-credentials-provider
+    artifactoryUrl: "<artifactory-url>"
+    matchImages:
+      - "*.<test.your-org.domain.io>"
+    defaultCacheDuration: 5h
+    tokenAttributes:
+      enabled: true
+    azure:
+      enabled: true
+      azure_app_client_id: "<azure-app-client-id>"
+      azure_app_audience: "api://AzureADTokenExchange"
+      jfrog_oidc_provider_name: "<jfrog-oidc-provider-name>"
+
+rbac:
+  create: true
+
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: credentialsProviderEnabled
+              operator: In
+              values:
+                - "true"
