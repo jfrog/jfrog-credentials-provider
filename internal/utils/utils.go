@@ -21,8 +21,10 @@ import (
 	"jfrog-credential-provider/internal/logger"
 	"math/big"
 	"os"
+	"reflect"
 	"slices"
 	"strconv"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -64,7 +66,10 @@ type Provider struct {
 	DefaultCacheDuration string           `json:"defaultCacheDuration" yaml:"defaultCacheDuration"`
 	APIVersion           string           `json:"apiVersion" yaml:"apiVersion"`
 	Env                  []EnvVar         `json:"env,omitempty" yaml:"env,omitempty"`
+	Args                 []string         `json:"args,omitempty" yaml:"args,omitempty"`
 	TokenAttributes      *TokenAttributes `json:"tokenAttributes,omitempty" yaml:"tokenAttributes,omitempty"`
+	// handling extra fields for the provider config
+	ExtraFields map[string]interface{} `json:"-" yaml:",inline"`
 }
 
 type TokenAttributes struct {
@@ -86,6 +91,31 @@ type CredentialProviderConfig struct {
 	Providers  []Provider `json:"providers" yaml:"providers"`
 }
 
+func getStructFields(s interface{}) []string {
+	fields := make([]string, 0)
+	t := reflect.TypeOf(s)
+
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		tag := field.Tag.Get("json")
+		fieldName := strings.Split(tag, ",")[0]
+		if fieldName == "-" {
+			continue
+		}
+
+		if fieldName == "" {
+			fieldName = field.Name
+		}
+
+		fields = append(fields, fieldName)
+	}
+	return fields
+}
+
 func (a AuthSection) MarshalJSON() ([]byte, error) {
 	// Create a map to hold our custom JSON structure
 	m := map[string]interface{}{}
@@ -102,6 +132,51 @@ func (a *AuthSection) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	a.Registry = m
+	return nil
+}
+
+func (p Provider) MarshalJSON() ([]byte, error) {
+	type Alias Provider
+
+	standardBytes, err := json.Marshal((*Alias)(&p))
+	if err != nil {
+		return nil, err
+	}
+
+	var finalMap map[string]interface{}
+	if err := json.Unmarshal(standardBytes, &finalMap); err != nil {
+		return nil, err
+	}
+	for key, value := range p.ExtraFields {
+		finalMap[key] = value
+	}
+
+	return json.Marshal(finalMap)
+}
+
+func (p *Provider) UnmarshalJSON(data []byte) error {
+	type Alias Provider
+	providerAliasMap := (*Alias)(p)
+
+	if err := json.Unmarshal(data, &providerAliasMap); err != nil {
+		return err
+	}
+
+	// Unmarshal the raw JSON into a map to capture everything
+	var allFields map[string]interface{}
+	if err := json.Unmarshal(data, &allFields); err != nil {
+		return err
+	}
+
+	// Delete the known fields from the map to only keep the extra fields
+	knownFields := getStructFields(p)
+
+	for _, key := range knownFields {
+		delete(allFields, key)
+	}
+
+	// Assign the remaining fields to ExtraFields
+	p.ExtraFields = allFields
 	return nil
 }
 
@@ -166,7 +241,6 @@ func ReadFile(filePath string, isYaml bool, v interface{}, cloudProvider string)
 
 func MergeFiles(file1, file2, outputFile string, isYaml, dryRun bool, logs *logger.Logger, cloudProvider string) error {
 	// Read and parse the first file
-
 	var config CredentialProviderConfig
 
 	// cloudProvider is being passed to be used by the validateJfrogProviderConfig function
