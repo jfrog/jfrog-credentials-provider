@@ -24,14 +24,21 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 const (
 	defaultProviderHome = "/etc/eks/image-credential-provider/"
 	jfrogConfigFile     = "jfrog-provider"
 	finalConfigFile     = "config"
+
+	jfrogProviderIdentifier = "jfrog"
+	backupSuffixOriginal    = ".backup" // pristine pre-JFrog config
+	backupSuffixJfrog       = ".jfrog"  // last working config with JFrog
 )
 
 type EnvVar struct {
@@ -67,6 +74,74 @@ func ProcessProviderConfigEnvs(providerHome string, providerConfigFileName strin
 	}
 
 	return providerHome, providerConfigFileName
+}
+
+// resolveConfigPath builds the full config file path from provider home,
+// config file name, and format.
+func resolveConfigPath(isYaml bool, providerHome string, providerConfigFileName string) string {
+	if isYaml {
+		return providerHome + providerConfigFileName + ".yaml"
+	}
+	return providerHome + providerConfigFileName + ".json"
+}
+
+// configContainsJfrogProvider unmarshals the config (without validation) and
+// checks if any provider name contains "jfrog". This is safer than a raw
+// strings.Contains on the file contents, which could false-positive on
+// comments, URLs, or unrelated fields.
+func configContainsJfrogProvider(configPath string, isYaml bool) (bool, error) {
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return false, err
+	}
+	var config utils.CredentialProviderConfig
+	if isYaml {
+		err = yaml.Unmarshal(data, &config)
+	} else {
+		err = json.Unmarshal(data, &config)
+	}
+	if err != nil {
+		return false, err
+	}
+	for _, p := range config.Providers {
+		if strings.Contains(p.Name, jfrogProviderIdentifier) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// BackupConfig is config-aware: it reads the kubelet credential provider config,
+// checks whether the JFrog provider already exists, and decides which backup to create:
+//   - JFrog NOT in config (first install) --> saves to <config>.backup
+//   - JFrog IS in config (upgrade / post-success) --> saves to <config>.jfrog
+func BackupConfig(isYaml bool, providerHome string, providerConfigFileName string, isKubelethWatcher bool, logs *logger.Logger) error {
+	configPath := resolveConfigPath(isYaml, providerHome, providerConfigFileName)
+
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to read config for backup: %w", err)
+	}
+
+	// Decide suffix by parsing the config struct and checking provider names
+	suffix := backupSuffixOriginal
+	hasJfrog, err := configContainsJfrogProvider(configPath, isYaml)
+	if err != nil {
+		logs.Info("Warning: could not parse config to check for JFrog provider: " + err.Error())
+		// Default to .backup if we can't determine
+	} else if hasJfrog && isKubelethWatcher {
+		suffix = backupSuffixJfrog
+	} else {
+		logs.Info("Waiting for kubelet watcher to finish before creating backup")
+		return nil
+	}
+
+	backupPath := configPath + suffix
+	if err := os.WriteFile(backupPath, data, 0644); err != nil {
+		return fmt.Errorf("failed to write backup to %s: %w", backupPath, err)
+	}
+	logs.Info("Config backed up to " + backupPath)
+	return nil
 }
 
 func CreateProviderConfigFromEnv(isYaml bool, providerHome string, providerConfigFileName string) {
@@ -185,8 +260,84 @@ func MergeConfig(dryRun, isYaml bool, providerHome string, providerConfigFileNam
 	ctx := context.Background()
 	cloudProvider := getCloudProvider(svc, ctx, logs)
 
+	// Before merge, backup the current config (config-aware: picks .backup or .jfrog)
+	if err := BackupConfig(isYaml, providerHome, providerConfigFileName, false, logs); err != nil {
+		logs.Info("Warning: could not create pre-merge backup: " + err.Error())
+		// Non-fatal: continue with merge even if backup fails
+	}
+
 	err = utils.MergeFiles(finalConfigFileName, jfrogConfigFileName, finalConfigFileName, isYaml, dryRun, logs, cloudProvider)
 	if err != nil {
 		logs.Exit(err, 1)
 	}
+}
+
+// WatchKubelet monitors kubelet health for the given timeout (in seconds).
+// It waits an initial grace period for kubelet restart to begin, then polls
+// systemctl is-active kubelet every 5 seconds. If kubelet is not active,
+// it triggers a rollback to the most recent backup.
+func WatchKubelet(isYaml bool, providerHome string, providerConfigFileName string, timeout int, logs *logger.Logger) {
+	configPath := resolveConfigPath(isYaml, providerHome, providerConfigFileName)
+
+	interval := 5
+	elapsed := 0
+	// Initial grace period to allow kubelet restart to begin
+	gracePeriod := 5
+	logs.Info(fmt.Sprintf("Watcher: waiting %d seconds grace period before monitoring kubelet", gracePeriod))
+	time.Sleep(time.Duration(gracePeriod) * time.Second)
+	elapsed += gracePeriod
+
+	for elapsed < timeout {
+		out, _ := exec.Command("systemctl", "is-active", "kubelet").Output()
+		status := strings.TrimSpace(string(out))
+		if status != "active" {
+			logs.Error("Kubelet is not active (status: " + status + "), triggering rollback")
+			rollbackConfig(configPath, logs)
+			return
+		}
+		logs.Info(fmt.Sprintf("Watcher: kubelet active (%d/%d seconds elapsed)", elapsed, timeout))
+		time.Sleep(time.Duration(interval) * time.Second)
+		elapsed += interval
+	}
+	logs.Info("Watcher: kubelet healthy for full timeout period")
+	// create a backup of the config
+	if err := BackupConfig(isYaml, providerHome, providerConfigFileName, true, logs); err != nil {
+		logs.Error("Failed to create post-success backup of kubelet config: " + err.Error())
+	}
+	logs.Info("Watcher: created post-success backup of kubelet config")
+}
+
+// rollbackConfig restores the kubelet credential provider config from the
+// best available backup. Priority:
+//  1. .jfrog  -- last known working config with JFrog (keeps JFrog working)
+//  2. .backup -- pristine pre-JFrog config (removes JFrog entirely)
+func rollbackConfig(configPath string, logs *logger.Logger) {
+	jfrogBackup := configPath + backupSuffixJfrog
+	originalBackup := configPath + backupSuffixOriginal
+
+	var restoreFrom string
+	if _, err := os.Stat(jfrogBackup); err == nil {
+		restoreFrom = jfrogBackup
+	} else if _, err := os.Stat(originalBackup); err == nil {
+		restoreFrom = originalBackup
+	} else {
+		logs.Error("No backup files found, cannot rollback")
+		return
+	}
+
+	logs.Info("Rolling back kubelet config from " + restoreFrom)
+	data, err := os.ReadFile(restoreFrom)
+	if err != nil {
+		logs.Error("Failed to read backup: " + err.Error())
+		return
+	}
+	if err := os.WriteFile(configPath, data, 0644); err != nil {
+		logs.Error("Failed to restore config: " + err.Error())
+		return
+	}
+	logs.Info("Restored config from " + restoreFrom)
+	logs.Info("Kubelet was restarting continously, so we rolled back to the most recent backup.")
+	logs.Info("Jfrog Credential Provider has been removed from your cluster, please check the config and retry.")
+
+	// will wait for kubelet to restart on its own
 }
