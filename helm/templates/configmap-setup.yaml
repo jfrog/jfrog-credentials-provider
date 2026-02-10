@@ -93,16 +93,27 @@ data:
         cat ${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH}
     fi
 
-    log "Done updating the kubelet config.json"
+    log "Done updating the kubelet config"
 
 
     log "See kubelet service status"
     nsenter -t 1 -m -p -- systemctl status kubelet
+
+    log "Starting kubelet health watcher (60s)"
+    {{- if or (eq $cloudProvider "gcp") (eq $cloudProvider "azure") }}
+    nsenter -t 1 -m -p -- systemd-run --scope ${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ .name }} watch-kubelet --yaml --provider-home "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}" --provider-config "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_FILE_NAME}" --timeout 60 &
+    {{- else if eq $cloudProvider "aws" }}
+    nsenter -t 1 -m -p -- systemd-run --scope ${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ .name }} watch-kubelet --provider-home "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}" --provider-config "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_FILE_NAME}" --timeout 60 &
+    {{- end }}
 
     log "Restarting the kubelet service"
     nsenter -t 1 -m -p -- systemctl restart kubelet
 
     log "See new kubelet service status"
     nsenter -t 1 -m -p -- systemctl status kubelet
+
+    # Logs of credential provider for 30 seconds
+    nsenter -t 1 -m -p -- timeout 30s tail -n 30 -f /var/log/jfrog-credential-provider.log || true
+
     {{- end }}
 

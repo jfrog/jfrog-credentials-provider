@@ -17,7 +17,9 @@ package main
 import (
 	"context"
 	"flag"
+	"jfrog-credential-provider/internal/logger"
 	"jfrog-credential-provider/internal/provider"
+	"log"
 	"os"
 	"time"
 )
@@ -36,6 +38,14 @@ func main() {
 	isYaml := addProviderConfigCmd.Bool("yaml", false, "Generate config in YAML format")
 	providerHome := addProviderConfigCmd.String("provider-home", "", "Provider home directory")
 	providerConfig := addProviderConfigCmd.String("provider-config", "", "Provider config file name")
+
+	// Create a subcommand for watch-kubelet
+	watchKubeletCmd := flag.NewFlagSet("watch-kubelet", flag.ExitOnError)
+	watchIsYaml := watchKubeletCmd.Bool("yaml", false, "Config is in YAML format")
+	watchProviderHome := watchKubeletCmd.String("provider-home", "", "Provider home directory")
+	watchProviderConfig := watchKubeletCmd.String("provider-config", "", "Provider config file name")
+	watchTimeout := watchKubeletCmd.Int("timeout", 60, "Timeout in seconds to watch kubelet health")
+
 	switch {
 	case len(os.Args) > 1 && os.Args[1] == "add-provider-config":
 		// Parse flags for the subcommand
@@ -49,6 +59,17 @@ func main() {
 			provider.MergeConfig(*dryRun, *isYaml, resolvedProviderHome, resolvedProviderConfig)
 		}
 		return
+
+	case len(os.Args) > 1 && os.Args[1] == "watch-kubelet":
+		watchKubeletCmd.Parse(os.Args[2:])
+		resolvedHome, resolvedConfig := provider.ProcessProviderConfigEnvs(*watchProviderHome, *watchProviderConfig)
+		logs, err := logger.NewLogger()
+		if err != nil {
+			log.Fatalf("Failed to initialize logger: %v", err)
+		}
+		provider.WatchKubelet(*watchIsYaml, resolvedHome, resolvedConfig, *watchTimeout, logs)
+		return
+
 	default:
 		// Default behavior
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
