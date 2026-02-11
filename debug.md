@@ -89,7 +89,7 @@ export jfrog_oidc_provider_name=YOUR_PROVIDER_NAME
 Run the plugin manually:
 
 ```bash
-./jfrog-credential-provider < request.json
+./jfrog-credentials-provider < request.json
 ```
 
 This should output a `CredentialProviderResponse` with an auth token if successful.

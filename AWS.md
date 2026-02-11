@@ -643,7 +643,7 @@ Before installing JFrog helm charts, you need to add the [JFrog helm repository]
 
 ```bash
 helm repo add jfrog https://charts.jfrog.io
-help repo update
+helm repo update
 ```
 
 And then install using the following command - 
