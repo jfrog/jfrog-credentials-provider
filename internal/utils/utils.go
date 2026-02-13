@@ -334,7 +334,11 @@ func ValidateJfrogProviderConfig(config Provider, cloudProvider string) error {
 		}
 
 	case CloudProviderAzure:
-		if GetEnvVarValue(config.Env, "azure_app_client_id") == "" || GetEnvVarValue(config.Env, "azure_tenant_id") == "" || GetEnvVarValue(config.Env, "azure_app_audience") == "" || GetEnvVarValue(config.Env, "azure_nodepool_client_id") == "" || GetEnvVarValue(config.Env, "jfrog_oidc_provider_name") == "" {
+		if slices.Contains(config.TokenAttributes.RequiredServiceAccountAnnotationKeys, "JFrogExchange") {
+			if GetEnvVarValue(config.Env, "azure_app_client_id") == "" || GetEnvVarValue(config.Env, "azure_app_audience") == "" || GetEnvVarValue(config.Env, "jfrog_oidc_provider_name") == "" {
+				return fmt.Errorf("ERROR in JFrog Credentials provider, environment variables missing: azure_app_client_id, azure_app_audience, jfrog_oidc_provider_name")
+			}
+		} else if GetEnvVarValue(config.Env, "azure_app_client_id") == "" || GetEnvVarValue(config.Env, "azure_tenant_id") == "" || GetEnvVarValue(config.Env, "azure_app_audience") == "" || GetEnvVarValue(config.Env, "azure_nodepool_client_id") == "" || GetEnvVarValue(config.Env, "jfrog_oidc_provider_name") == "" {
 			return fmt.Errorf("ERROR in JFrog Credentials provider, environment variables missing: azure_app_client_id, azure_tenant_id, azure_app_audience, azure_nodepool_client_id, jfrog_oidc_provider_name")
 		}
 	case CloudProviderGoogle:
