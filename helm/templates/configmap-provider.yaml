@@ -69,6 +69,8 @@ data:
       "name": "jfrog_oidc_provider_name",
       "value": {{ .aws.jfrog_oidc_provider_name | toJson }}
     }
+    ]
+    }
     {{- else if eq .aws.aws_auth_method "assume_role" }}
     {
       "name": "aws_role_name",
