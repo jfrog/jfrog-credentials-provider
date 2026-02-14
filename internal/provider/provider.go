@@ -170,6 +170,7 @@ func validateAWSEnvVariables(logs *logger.Logger, request utils.CredentialProvid
 		logs.Exit("wrong aws_auth_method value :"+awsAuthMethod, 1)
 	}
 
+	// aws_role_name is only required for assume_role / web_identity, not for cognito_oidc
 	awsRoleName := os.Getenv("aws_role_name")
 
 	if request.ServiceAccountAnnotations["eks.amazonaws.com/role-arn"] != "" {
@@ -178,9 +179,9 @@ func validateAWSEnvVariables(logs *logger.Logger, request utils.CredentialProvid
 		logs.Info("Service account annotation for eks.amazonaws.com/role-arn not found, using aws_role_name")
 	}
 
-	if awsRoleName == "" {
+	if awsRoleName == "" && awsAuthMethod != "cognito_oidc" {
 		logs.Exit("error in JFrog Credentials provider, environment var: awsRoleName configured in the plugin aws_role_name was empty", 1)
-	} else {
+	} else if awsRoleName != "" {
 		logs.Info("getting envs - " + "awsRoleName :" + awsRoleName)
 	}
 
