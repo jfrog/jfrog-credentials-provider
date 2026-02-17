@@ -340,6 +340,123 @@ curl -X GET "https://$ARTIFACTORY_URL/access/api/v1/oidc/$OIDC_PROVIDER_NAME" \
 
 ---
 
+## Step 3B: 🔑 Alternative - Using Projected Service Account Tokens (Workload Identity)
+
+Instead of using the Nodepool's Managed Identity, you can use **Kubernetes Workload Identity**. This allows the Credential Provider to use a specific Kubernetes Service Account to authenticate with Artifactory. This method provides better security isolation as each service account can have its own Azure AD app registration.
+
+**Flow Overview:**
+
+1. The credential provider requests a service account token from Kubernetes with the AKS OIDC issuer audience
+
+2. The provider exchanges the service account token for an OIDC access token from Azure AD using federated credentials
+
+3. The provider exchanges the Azure OIDC token with Artifactory, which validates it and returns a short-lived registry access token
+
+4. The kubelet uses the registry token to authenticate and pull the container image
+
+### Step 3B.1: ✅ Enable OIDC Issuer on AKS
+
+First, ensure your cluster has the OIDC issuer enabled to support Workload Identity:
+
+```bash
+# Set variables
+RESOURCE_GROUP="your-resource-group"
+CLUSTER_NAME="your-aks-cluster"
+
+# Enable OIDC Issuer
+az aks update \
+  --resource-group "$RESOURCE_GROUP" \
+  --name "$CLUSTER_NAME" \
+  --enable-oidc-issuer
+
+# Retrieve the OIDC Issuer URL (Save this for Artifactory config)
+SERVICE_ACCOUNT_ISSUER=$(az aks show \
+  --resource-group "$RESOURCE_GROUP" \
+  --name "$CLUSTER_NAME" \
+  --query "oidcIssuerProfile.issuerUrl" \
+  -o tsv)
+
+echo "Service Account Issuer: $SERVICE_ACCOUNT_ISSUER"
+```
+
+> **💾 Important:** Save the `SERVICE_ACCOUNT_ISSUER` URL - you'll need it for Artifactory OIDC configuration.
+
+### Step 3B.2: 👤 Configure the Kubernetes Service Account
+
+Create a Service Account that the Credential Provider will use to project the tokens:
+
+```bash
+# Set variables
+NAMESPACE="jfrog"
+SERVICE_ACCOUNT_NAME="jfrog-provider-sa"
+
+# Create the namespace if it doesn't exist
+kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+
+# Create the service account
+kubectl create serviceaccount "$SERVICE_ACCOUNT_NAME" -n "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+
+# Annotate the service account with your Azure App Client ID and Workload Identity marker
+kubectl annotate serviceaccount "$SERVICE_ACCOUNT_NAME" \
+  -n "$NAMESPACE" \
+  azure.workload.identity/client-id="$APP_CLIENT_ID" \
+  JFrogExchange="true" \
+  --overwrite
+```
+
+> **ℹ️ Note:** The `JFrogExchange="true"` annotation tells the credential provider to use the projected service account token instead of the nodepool's managed identity.
+
+### Step 3B.3: 🐸 Update JFrog Artifactory OIDC Configuration
+
+You must point Artifactory to your AKS Cluster's OIDC Issuer instead of the global Azure Login URL for this flow:
+
+#### Update/Create OIDC Provider in Artifactory:
+
+```bash
+# Create or update the OIDC provider
+curl -X POST "https://$ARTIFACTORY_URL/access/api/v1/oidc" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ARTIFACTORY_ADMIN_TOKEN" \
+  -d "{
+    \"name\": \"aks-workload-identity\",
+    \"issuer_url\": \"$SERVICE_ACCOUNT_ISSUER\",
+    \"provider_type\": \"Azure\",
+    \"token_issuer\": \"$SERVICE_ACCOUNT_ISSUER\",
+    \"use_default_proxy\": false,
+    \"description\": \"OIDC provider for Azure AKS Workload Identity\"
+  }"
+```
+
+#### Create Identity Mapping for Service Account:
+
+The `sub` (subject) claim must specifically target your Kubernetes Service Account:
+
+```bash
+curl -X POST "https://$ARTIFACTORY_URL/access/api/v1/oidc/aks-workload-identity/identity_mappings" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $ARTIFACTORY_ADMIN_TOKEN" \
+  -d "{
+    \"name\": \"aks-workload-identity-mapping\",
+    \"description\": \"Azure AKS Workload Identity mapping\",
+    \"claims\": {
+      \"aud\": \"api://AzureADTokenExchange\",
+      \"iss\": \"$SERVICE_ACCOUNT_ISSUER\",
+      \"sub\": \"system:serviceaccount:${NAMESPACE}:${SERVICE_ACCOUNT_NAME}\"
+    },
+    \"token_spec\": {
+      \"username\": \"$ARTIFACTORY_USER\",
+      \"scope\": \"applied-permissions/user\",
+      \"audience\": \"*@*\",
+      \"expires_in\": 3600
+    },
+    \"priority\": 1
+  }"
+```
+
+> **⚠️ Important:** The `sub` claim must exactly match the Kubernetes service account format: `system:serviceaccount:<namespace>:<service-account-name>`
+
+---
+
 ## Step 4: 🚀 Deploy Credentials Provider
 
 Deploy the credential provider using Helm. For manual deployment with Kubernetes manifests, refer to the [Kubernetes Kubelet Credential Provider documentation](https://kubernetes.io/docs/tasks/administer-cluster/kubelet-credential-provider/).
@@ -367,6 +484,60 @@ echo "jfrog_oidc_provider_name: $OIDC_PROVIDER_NAME"
 | `azure_app_audience` | The OIDC audience | `api://AzureADTokenExchange` |
 | `jfrog_oidc_provider_name` | The name of the OIDC provider in Artifactory | `azure-aks-oidc-provider` |
 | `artifactory_url` | Your JFrog Artifactory URL | `your-instance.jfrog.io` |
+
+#### Configuration for Traditional Nodepool Identity
+
+Use this configuration if you're using the **nodepool's managed identity** (Steps 1-3):
+
+```yaml
+providerConfig:
+  - name: jfrog-credentials-provider
+    artifactoryUrl: partnership.jfrog.io
+    matchImages:
+      - "*.jfrog.io"
+    defaultCacheDuration: 5m
+    tokenAttributes:
+      enabled: false  # Set to false for nodepool identity
+    azure:
+      enabled: true
+      azure_tenant_id: "<tenant-id>"
+      azure_app_client_id: "<app-client-id>"
+      azure_nodepool_client_id: "<nodepool-client-id>"
+      azure_app_audience: "api://AzureADTokenExchange"
+      jfrog_oidc_provider_name: "<oidc-provider-name>"
+
+rbac:
+  create: true
+```
+
+#### Configuration for Workload Identity (Projected Service Account Tokens)
+
+Use this configuration if you're using **Kubernetes Workload Identity** (Steps 3B):
+
+```yaml
+providerConfig:
+  - name: jfrog-credentials-provider
+    artifactoryUrl: partnership.jfrog.io
+    matchImages:
+      - "*.jfrog.io"
+    defaultCacheDuration: 5m
+    tokenAttributes:
+      enabled: true  # Enable projected token support
+      serviceAccountTokenAudience: "api://AzureADTokenExchange"
+    azure:
+      enabled: true
+      azure_app_client_id: "<app-client-id>"
+      azure_app_audience: "api://AzureADTokenExchange"
+      jfrog_oidc_provider_name: "aks-workload-identity"
+
+rbac:
+  create: true
+
+# Note: You must also create the service account and annotate it as described in Step 3B.2
+```
+
+> **ℹ️ Note:** When using Workload Identity, ensure the service account `jfrog-provider-sa` is annotated with `JFrogExchange="true"` and the Azure App Client ID as shown in Step 3B.2.
+
 ### 📦 Install with Helm
 
 #### Add JFrog Helm repository
@@ -378,7 +549,7 @@ helm repo add jfrog https://charts.jfrog.io
 helm repo update
 ```
 
-And then install using the following command - 
+#### Install the Credential Provider
 
 ```bash
 # Install the credential provider
