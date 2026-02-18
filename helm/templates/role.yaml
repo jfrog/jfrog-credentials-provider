@@ -1,14 +1,18 @@
 {{- $cloudProvider := include "jfrog-credential-provider.cloudProvider" . }}
-{{- if and .Values.rbac.create (eq $cloudProvider "aws") }}
+{{- if and .Values.rbac.create (or (eq $cloudProvider "azure") (eq $cloudProvider "aws")) }}
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+kind: ClusterRole
 metadata:
   name: {{ include "jfrog-credential-provider.fullname" . }}
   namespace: {{ include "jfrog-credential-provider.namespace" . }}
   labels:
     {{- include "jfrog-credential-provider.labels" . | nindent 4 }}
 rules:
+  {{- if (eq $cloudProvider "aws") }}
   {{- include "jfrog-credential-provider.defaultRBACRulesAWS" . | nindent 2 }}
+  {{- else if (eq $cloudProvider "azure") }}
+  {{- include "jfrog-credential-provider.defaultRBACRulesAzure" . | nindent 2 }}
+  {{- end }}
   {{- range .Values.rbac.role.additionalRules }}
   - {{- toYaml . | nindent 4 }}
   {{- end }}

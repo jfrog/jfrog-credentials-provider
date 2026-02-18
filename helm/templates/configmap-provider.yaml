@@ -25,7 +25,7 @@ data:
     "apiVersion": "credentialprovider.kubelet.k8s.io/v1",
     {{- end }}
     
-    {{- /* This is only supported for AWS at the moment */ -}}
+    {{- /* This is only supported for AWS and Azure at the moment */ -}}
     {{- if and .tokenAttributes .tokenAttributes.enabled (eq $cloudProvider "aws") }}
     "tokenAttributes": {
       "serviceAccountTokenAudience": "sts.amazonaws.com",
@@ -36,6 +36,18 @@ data:
         "JFrogExchange"
       ]
     },
+    {{- else if and .tokenAttributes .tokenAttributes.enabled (eq $cloudProvider "azure") }}
+    tokenAttributes:
+    {{- if .azure.azure_app_audience }}
+      serviceAccountTokenAudience: {{ .azure.azure_app_audience }}
+    {{- else}}
+      serviceAccountTokenAudience: api://AzureADTokenExchange
+    {{- end }}
+      cacheType: ServiceAccount
+      requireServiceAccount: true
+      requiredServiceAccountAnnotationKeys:
+        - azure.workload.identity/client-id
+        - JFrogExchange
     {{- end }}
 
   {{- if eq $cloudProvider "aws" }}

@@ -139,7 +139,7 @@ func cloudProviderAuth(svc *service.Service, ctx context.Context, logs *logger.L
 		return rtUsername, rtToken
 	case utils.CloudProviderAzure:
 		logs.Debug("Detected Azure cloud provider")
-		rtUsername, rtToken = handleAzureAuth(svc, ctx, logs, artifactoryUrl)
+		rtUsername, rtToken = handleAzureAuth(svc, ctx, logs, artifactoryUrl, request)
 		return rtUsername, rtToken
 	case utils.CloudProviderGoogle:
 		logs.Debug("Detected Google cloud provider")
@@ -237,7 +237,11 @@ func handleAWSAuth(svc *service.Service, ctx context.Context, logs *logger.Logge
 	return rtUsername, rtToken
 }
 
-func handleAzureAuth(svc *service.Service, ctx context.Context, logs *logger.Logger, artifactoryUrl string) (string, string) {
+func handleAzureAuth(svc *service.Service, ctx context.Context, logs *logger.Logger, artifactoryUrl string, request utils.CredentialProviderRequest) (string, string) {
+
+	var token string
+	var err error
+
 	// get required env variables
 	azureAppClientId := utils.GetEnvs(logs, "azure_app_client_id", "")
 	azureAppTenantId := utils.GetEnvs(logs, "azure_tenant_id", "")
@@ -245,15 +249,24 @@ func handleAzureAuth(svc *service.Service, ctx context.Context, logs *logger.Log
 	azureNodepoolClientId := utils.GetEnvs(logs, "azure_nodepool_client_id", "")
 	jfrogOidcProviderName := utils.GetEnvs(logs, "jfrog_oidc_provider_name", "")
 
-	if azureAppClientId == "" || azureAppTenantId == "" || azureAppAudience == "" || azureNodepoolClientId == "" || jfrogOidcProviderName == "" {
-		logs.Exit("ERROR in JFrog Credentials provider, environment variables missing: azure_app_client_id, azure_tenant_id, azure_app_audience, azure_nodepool_client_id, jfrog_oidc_provider_name", 1)
+	if request.ServiceAccountAnnotations["JFrogExchange"] != "true" {
+		if azureAppClientId == "" || azureAppTenantId == "" || azureAppAudience == "" || azureNodepoolClientId == "" || jfrogOidcProviderName == "" {
+			logs.Exit("ERROR in JFrog Credentials provider, environment variables missing: azure_app_client_id, azure_tenant_id, azure_app_audience, azure_nodepool_client_id, jfrog_oidc_provider_name", 1)
+		} else {
+			logs.Info(fmt.Sprintf("getting envs - azureAppClientId: %s, azureNodepoolClientId: %s, azureAppTenantId: %s, azureAppAudience: %s, jfrogOidcProviderName: %s",
+				azureAppClientId, azureNodepoolClientId, azureAppTenantId, azureAppAudience, jfrogOidcProviderName))
+		}
+		// Get Azure OIDC token
+		token, err = handlers.GetAzureOIDCToken(svc, ctx, azureAppTenantId, azureAppClientId, azureNodepoolClientId, azureAppAudience)
 	} else {
-		logs.Info(fmt.Sprintf("getting envs - azureAppClientId: %s, azureNodepoolClientId: %s, azureAppTenantId: %s, azureAppAudience: %s, jfrogOidcProviderName: %s",
-			azureAppClientId, azureNodepoolClientId, azureAppTenantId, azureAppAudience, jfrogOidcProviderName))
+		if azureAppClientId == "" || azureAppAudience == "" || jfrogOidcProviderName == "" {
+			logs.Exit("ERROR in JFrog Credentials provider, environment variables missing: azure_app_client_id, azure_app_audience, jfrog_oidc_provider_name", 1)
+		} else {
+			logs.Info(fmt.Sprintf("getting envs - azureAppClientId: %s, azureAppAudience: %s, jfrogOidcProviderName: %s",
+				azureAppClientId, azureAppAudience, jfrogOidcProviderName))
+		}
+		token = request.ServiceAccountToken
 	}
-
-	// Get Azure OIDC token
-	token, err := handlers.GetAzureOIDCToken(svc, ctx, azureAppTenantId, azureAppClientId, azureNodepoolClientId, azureAppAudience)
 	if err != nil {
 		logs.Exit("ERROR in GetAzureOIDCToken :"+err.Error(), 1)
 	}

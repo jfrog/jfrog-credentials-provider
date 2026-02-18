@@ -112,3 +112,18 @@ Default RBAC rules for AWS IRSA with service account token projection
   verbs: ["request-serviceaccounts-token-audience"]
 {{- end }}
 
+{{/*
+Default RBAC rules for azure with service account token projection
+*/}}
+{{- define "jfrog-credential-provider.defaultRBACRulesAzure" -}}
+- apiGroups: [""]
+  resources: ["api://AzureADTokenExchange"]
+  verbs: ["request-serviceaccounts-token-audience"]
+- apiGroups: [""]
+  resources: ["serviceaccounts/token"]
+  verbs: ["create"]
+- apiGroups: [""]
+  resources: ["serviceaccounts"]
+  verbs: ["get", "list"]
+{{- end }}
+
