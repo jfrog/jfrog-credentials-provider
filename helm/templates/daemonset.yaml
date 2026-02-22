@@ -20,10 +20,8 @@ spec:
       {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
       {{- end }}
-      {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "jfrog-credential-provider.serviceAccountName" . }}
       automountServiceAccountToken: true
-      {{- end }}
       {{- with .Values.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
@@ -39,12 +37,6 @@ spec:
       initContainers:
         - name: jfrog-credential-provider-injector
           image: {{ include "jfrog-credential-provider.initContainerImage" . }}
-          {{- if .Values.initContainer.image.imagePullSecrets }}
-          imagePullSecrets:
-            {{- range .Values.initContainer.image.imagePullSecrets }}
-            - name: {{ . }}
-            {{- end }}
-          {{- end }}
           imagePullPolicy: {{ .Values.initContainer.image.pullPolicy }}
           env:
             - name: JFROG_CREDENTIAL_PROVIDER_BINARY_URL
@@ -86,17 +78,17 @@ spec:
       containers:
         - name: jfrog-credential-provider-injector-pause
           image: {{ include "jfrog-credential-provider.pauseImage" . }}
-          {{- if .Values.image.imagePullSecrets }}
-          imagePullSecrets:
-            {{- range .Values.image.imagePullSecrets }}
-            - name: {{ . }}
-            {{- end }}
-          {{- end }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           {{- with .Values.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- range .Values.imagePullSecrets }}
+        - name: {{ . }}
+        {{- end }}
+      {{- end }}
       volumes:
         {{- if or (eq $cloudProvider "aws") (eq $cloudProvider "gcp") }}
         - name: host
