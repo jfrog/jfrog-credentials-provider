@@ -1,0 +1,46 @@
+# build/test/env - Non-sensitive test configuration
+# Source this file before running test scripts.
+#
+# Required GitHub Actions secrets (not stored here):
+#   AWS_ROLE_TO_ASSUME         - IAM role ARN for GitHub Actions OIDC auth to AWS
+#   AWS_NODE_ROLE_ARN          - IAM role ARN for EKS node groups
+#   AWS_SUBNET_IDS             - Space-separated subnet IDs for EKS node groups
+#   AZURE_APP_CLIENT_ID        - Azure AD app registration client ID
+#   AZURE_TENANT_ID            - Azure AD tenant ID
+#   AZURE_SUBSCRIPTION_ID      - Azure subscription ID
+#   AZURE_NODEPOOL_CLIENT_ID   - Managed identity client ID for AKS node pool
+#   GCP_WORKLOAD_IDENTITY_PROVIDER - Workload Identity Federation provider for GitHub Actions OIDC auth to GCP
+#   GCP_SERVICE_ACCOUNT_EMAIL  - GCP service account email for node pools and GH Actions auth
+
+# ---------------------------------------------------------------------------
+# Shared
+# ---------------------------------------------------------------------------
+export ARTIFACTORY_URL="partnership.jfrog.io"
+export MATCH_IMAGES="partnership*.jfrog.io"
+export TEST_IMAGE="partnership-docker-remote-test.jfrog.io/busybox:latest"
+
+# ---------------------------------------------------------------------------
+# AWS
+# ---------------------------------------------------------------------------
+export EKS_CLUSTER_NAME="aws-operator-jfrog"
+export AWS_REGION="ap-northeast-3"
+export AWS_ROLE_NAME="OperatorSelfManagedWorkerNodeRole"
+
+# ---------------------------------------------------------------------------
+# Azure
+# ---------------------------------------------------------------------------
+export AKS_CLUSTER_NAME="robind-test-v1"
+export AKS_RESOURCE_GROUP="infra-robin-test"
+export AZURE_JFROG_OIDC_PROVIDER_NAME="azure-aks-oidc-provider"
+export AZURE_APP_AUDIENCE="api://AzureADTokenExchange"
+export AZURE_IDENTITY_NAME="kep-identity"
+
+# ---------------------------------------------------------------------------
+# GCP
+# ---------------------------------------------------------------------------
+export GKE_CLUSTER_NAME="jfrog-inst-credentials-cluster"
+export GCP_PROJECT="jfrog-dev"
+export GCP_ZONE="asia-south1-a"
+export GCP_MACHINE_TYPE="e2-medium"
+export GCP_OIDC_AUDIENCE="jfrog-dev"
+export GCP_JFROG_OIDC_PROVIDER_NAME="gcp-gke-oidc-provider"
