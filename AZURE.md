@@ -128,6 +128,83 @@ echo "Tenant ID: $TENANT_ID"
 az ad sp create --id "$APP_CLIENT_ID"
 ```
 
+### 🔒 Enable Assignment Required (Recommended)
+
+By default, **Assignment Required** is set to **No** on the enterprise application. This means any user or service principal in your tenant can acquire an access token from the app registration. Since the JFrog Credential Provider exchanges this token with Artifactory for image pull credentials, leaving this open is a security concern.
+
+Setting **Assignment Required** to **Yes** ensures that only explicitly assigned principals can obtain tokens from the app.
+
+**Enable via Azure Portal:**
+
+1. Navigate to **Azure Portal** → **Enterprise applications**
+2. Search for your application by name
+3. Go to **Properties**
+4. Set **Assignment required?** to **Yes**
+5. Click **Save**
+
+**Enable via Azure CLI:**
+
+```bash
+SPN_OBJECT_ID=$(az ad sp list --filter "appId eq '$APP_CLIENT_ID'" --query "[0].id" -o tsv)
+
+az rest --method PATCH \
+  --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$SPN_OBJECT_ID" \
+  --headers "Content-Type=application/json" \
+  --body '{"appRoleAssignmentRequired": true}'
+```
+
+After enabling this, the credential provider will fail to obtain tokens because the app's own service principal is not assigned. To fix this, assign the service principal to itself by creating an app role and assigning it:
+
+**1. Create an App Role**
+
+Navigate to **Azure Portal** → **App registrations** → your app → **App roles** → **Create app role**:
+- **Display name**: e.g., `Task.Read`
+- **Allowed member types**: Applications
+- **Value**: `Task.Read`
+- **Description**: Role for credential provider access
+
+Or via CLI:
+
+```bash
+OBJECT_ID=$(az ad app show --id "$APP_CLIENT_ID" --query "id" -o tsv)
+
+az rest --method PATCH \
+  --uri "https://graph.microsoft.com/v1.0/applications/$OBJECT_ID" \
+  --headers "Content-Type=application/json" \
+  --body '{
+    "appRoles": [{
+      "allowedMemberTypes": ["Application"],
+      "displayName": "Task.Read",
+      "id": "'$(uuidgen)'",
+      "isEnabled": true,
+      "description": "Role for credential provider access",
+      "value": "Task.Read"
+    }]
+  }'
+```
+
+**2. Get the SPN Object ID and Role ID**
+
+```bash
+SPN_OBJECT_ID=$(az ad sp list --filter "appId eq '$APP_CLIENT_ID'" --query "[0].id" -o tsv)
+ROLE_ID=$(az ad sp show --id "$SPN_OBJECT_ID" --query "appRoles[?value=='Task.Read'].id" -o tsv)
+```
+
+**3. Assign the Service Principal to itself**
+
+```bash
+az rest --method POST \
+  --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$SPN_OBJECT_ID/appRoleAssignments" \
+  --headers "Content-Type=application/json" \
+  --body "{
+    \"principalId\": \"$SPN_OBJECT_ID\",
+    \"resourceId\": \"$SPN_OBJECT_ID\",
+    \"appRoleId\": \"$ROLE_ID\"
+  }"
+```
+
+After this, the credential provider will continue to work via the federated credentials on the nodepool managed identity, but other apps in your tenant will no longer be able to obtain tokens from this app registration.
+
 ### ⚙️ Configure Access Token Version
 
 The credential provider uses `https://login.microsoftonline.com` as the issuer URL (instead of the older `https://sts.windows.net/`). Azure requires you to set `requestedAccessTokenVersion` to `2` for this to work.
@@ -181,11 +258,11 @@ echo "Kubelet Identity Object ID: $KUBELET_IDENTITY_OBJECT_ID"
 echo "Kubelet Identity Client ID: $KUBELET_IDENTITY_CLIENT_ID"
 ```
 
-> **ℹ️ Note:** In most AKS configurations, the kubelet identity and nodepool identity are the same. If they differ, use the nodepool identity object ID (see alternative method below).
+### 📌 Get the User-Assigned Managed Identity (Nodepool Client ID)
 
-### 🔄 Get Nodepool Managed Identity (Alternative Method)
+The `azure_nodepool_client_id` is the client ID of the user-assigned managed identity that is attached to your AKS nodepool. This is the same identity that you add to the federated credentials of the app registration (in the next step).
 
-If you need to get the nodepool identity specifically:
+The credential provider runs on the node and uses this managed identity to request an identity token from Azure IMDS, which is then exchanged for an OIDC access token from the app registration.
 
 ```bash
 # Get the node resource group
@@ -199,13 +276,13 @@ NODEPOOL_IDENTITY_NAME=$(az identity list \
   --resource-group "$NODE_RESOURCE_GROUP" \
   --query "[?contains(name, 'agentpool')].name" -o tsv | head -1)
 
-# Get the object ID
+# Get the object ID (needed for the federated credential subject)
 NODEPOOL_IDENTITY_OBJECT_ID=$(az identity show \
   --resource-group "$NODE_RESOURCE_GROUP" \
   --name "$NODEPOOL_IDENTITY_NAME" \
   --query "principalId" -o tsv)
 
-# Get the client ID (you'll need this for the credential provider config)
+# Get the client ID (needed for the credential provider config)
 NODEPOOL_CLIENT_ID=$(az identity show \
   --resource-group "$NODE_RESOURCE_GROUP" \
   --name "$NODEPOOL_IDENTITY_NAME" \
@@ -216,6 +293,7 @@ echo "Nodepool Client ID: $NODEPOOL_CLIENT_ID"
 ```
 
 > **💾 Important:** Save `NODEPOOL_CLIENT_ID` - this is your `azure_nodepool_client_id`.
+> This identity must also be added as the **subject** in the federated credential of the app registration (see next step).
 
 ### ➕ Create Federated Identity Credential
 
@@ -281,6 +359,8 @@ curl -X POST "https://$ARTIFACTORY_URL/access/api/v1/oidc" \
     \"description\": \"OIDC provider for Azure AKS\",
     \"provider_type\": \"Azure\",
     \"token_issuer\": \"https://login.microsoftonline.com/$TENANT_ID/v2.0\",
+    \"azure_app_id\": \"$APP_CLIENT_ID\",
+    \"audience\": \"$APP_CLIENT_ID\",
     \"use_default_proxy\": false
   }"
 ```
@@ -363,7 +443,7 @@ echo "jfrog_oidc_provider_name: $OIDC_PROVIDER_NAME"
 |---------------------|-------------|---------|
 | `azure_tenant_id` | Your Azure AD tenant ID | `12345678-1234-1234-1234-123456789012` |
 | `azure_app_client_id` | The Azure AD application client ID | `87654321-4321-4321-4321-210987654321` |
-| `azure_nodepool_client_id` | The AKS nodepool managed identity client ID | `11111111-2222-3333-4444-555555555555` |
+| `azure_nodepool_client_id` | Client ID of the user-assigned managed identity attached to the AKS nodepool (also added to the app registration's federated credential) | `11111111-2222-3333-4444-555555555555` |
 | `azure_app_audience` | The OIDC audience | `api://AzureADTokenExchange` |
 | `jfrog_oidc_provider_name` | The name of the OIDC provider in Artifactory | `azure-aks-oidc-provider` |
 | `artifactory_url` | Your JFrog Artifactory URL | `your-instance.jfrog.io` |
