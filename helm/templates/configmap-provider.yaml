@@ -21,7 +21,7 @@ data:
     {{- else if eq $cloudProvider "aws" }}
     "name": "{{ .name  }}",
     "matchImages": {{ .matchImages | toJson }},
-    "defaultCacheDuration": "5h",
+    "defaultCacheDuration": {{ .defaultCacheDuration | toJson }},
     "apiVersion": "credentialprovider.kubelet.k8s.io/v1",
     {{- end }}
     

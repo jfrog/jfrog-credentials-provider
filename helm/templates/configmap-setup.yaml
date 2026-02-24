@@ -113,7 +113,7 @@ data:
     nsenter -t 1 -m -p -- systemctl status kubelet
 
     # Logs of credential provider for 30 seconds
-    nsenter -t 1 -m -p -- timeout 30s tail -n 30 -f /var/log/jfrog-credential-provider.log || true
+    nsenter -t 1 -m -p -- timeout 60s tail -n 30 -f /var/log/jfrog-credential-provider.log || true
 
     {{- end }}
 
