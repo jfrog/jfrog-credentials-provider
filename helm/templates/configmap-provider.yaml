@@ -63,19 +63,19 @@ data:
     {{- if eq .aws.aws_auth_method "cognito_oidc" }}
     {
       "name": "secret_name",
-      "value": {{ .aws.secret_name | toJson }}
+      "value": {{ .aws.aws_cognito_user_pool_secret_name | toJson }}
     },
     {
       "name": "user_pool_name",
-      "value": {{ .aws.user_pool_name | toJson }}
+      "value": {{ .aws.aws_cognito_user_pool_name | toJson }}
     },
     {
       "name": "resource_server_name",
-      "value": {{ .aws.resource_server_name | toJson }}
+      "value": {{ .aws.aws_cognito_resource_server_name | toJson }}
     },
     {
       "name": "user_pool_resource_scope",
-      "value": {{ .aws.user_pool_resource_scope | toJson }}
+      "value": {{ .aws.aws_cognito_user_pool_resource_scope | toJson }}
     },
     {
       "name": "jfrog_oidc_provider_name",

@@ -1,0 +1,30 @@
+providerConfig:
+  - name: jfrog-credentials-provider
+    artifactoryUrl: "<artifactory-url>.jfrog.io"
+    matchImages:
+      - "<artifactory-url>*.jfrog.io"
+    defaultCacheDuration: 5h
+    aws:
+      enabled: true
+      aws_auth_method: "cognito_oidc"
+      aws_cognito_user_pool_secret_name: "<aws-secrets-manager-secret-name>"
+      aws_cognito_user_pool_name: "<cognito-user-pool-name>"
+      aws_cognito_resource_server_name: "<cognito-resource-server-name>"
+      aws_cognito_user_pool_resource_scope: "read"
+      jfrog_oidc_provider_name: "<jfrog-oidc-provider-name>"
+
+# Affinitiy to control where it will be installed
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/arch
+              operator: In
+              values:
+                - amd64
+                - arm64
+            - key: credentialProviderEnabled
+              operator: In
+              values:
+                - "true"

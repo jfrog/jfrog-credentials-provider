@@ -427,7 +427,7 @@ SECRET_NAME="jfrog-cognito-credentials"
 # Create secret
 aws secretsmanager create-secret \
   --name "$SECRET_NAME" \
-  --secret-string "{\"client_id\":\"$CLIENT_ID\",\"client_secret\":\"$CLIENT_SECRET\",\"user_pool_id\":\"$USER_POOL_ID\"}"
+  --secret-string "{\"client-id\":\"$CLIENT_ID\",\"client-secret\":\"$CLIENT_SECRET\"}"
 
 echo "Secret Name: $SECRET_NAME"
 ```
@@ -441,33 +441,84 @@ The Cognito OIDC method requires a resource server with a scope. Create one if y
 ```bash
 # Set variables
 RESOURCE_SERVER_NAME="jfrog-resource-server"
-RESOURCE_SCOPE="jfrog.scope"
+RESOURCE_SCOPE="read"
 
 # Create resource server
 aws cognito-idp create-resource-server \
   --user-pool-id "$USER_POOL_ID" \
   --identifier "$RESOURCE_SERVER_NAME" \
   --name "$RESOURCE_SERVER_NAME" \
-  --scopes "Name=$RESOURCE_SCOPE,Description=JFrog Credentials Provider Scope"
+  --scopes '[{"ScopeName":"'"$RESOURCE_SCOPE"'","ScopeDescription":"JFrog Credentials Provider Scope"}]'
 
 echo "Resource Server Name: $RESOURCE_SERVER_NAME"
 echo "Resource Scope: $RESOURCE_SCOPE"
 ```
 
 > **💾 Important:** Save these values - you'll need them for the credential provider configuration:
-> - `RESOURCE_SERVER_NAME` (as `resource_server_name` in values file)
-> - `RESOURCE_SCOPE` (as `user_pool_resource_scope` in values file)
+> - `RESOURCE_SERVER_NAME` (as `aws_cognito_resource_server_name` in values file)
+> - `RESOURCE_SCOPE` (as `aws_cognito_user_pool_resource_scope` in values file)
+>
+> **Note:** The credential provider constructs the full OAuth2 scope automatically as `<resource_server_identifier>/<scope>` (e.g., `jfrog-resource-server/read`). You only need to provide the scope name (e.g., `read`).
 
-#### Grant Node Access to Secrets Manager
+#### Update User Pool Client with OAuth Settings
 
-Ensure your EKS node IAM role has permissions to read from Secrets Manager:
+After the resource server is created, update the user pool client to enable the `client_credentials` OAuth flow with the resource server scope:
 
 ```bash
-# Attach policy to node role (replace NODE_ROLE_NAME with your actual node role)
-aws iam attach-role-policy \
-  --role-name NODE_ROLE_NAME \
-  --policy-arn arn:aws:iam::aws:policy/SecretsManagerReadWrite
+aws cognito-idp update-user-pool-client \
+  --user-pool-id "$USER_POOL_ID" \
+  --client-id "$CLIENT_ID" \
+  --allowed-o-auth-flows client_credentials \
+  --allowed-o-auth-scopes "$RESOURCE_SERVER_NAME/$RESOURCE_SCOPE" \
+  --allowed-o-auth-flows-user-pool-client
 ```
+
+#### Grant Node Access to Cognito and Secrets Manager
+
+The EKS worker node IAM role needs permissions to read from Secrets Manager and query Cognito. Create a least-privilege policy:
+
+```bash
+NODE_ROLE_NAME="your-eks-node-role-name"
+ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+POLICY_NAME="jfrog-credential-provider-cognito-policy"
+
+# Create a least-privilege IAM policy
+POLICY_ARN=$(aws iam create-policy \
+  --policy-name "$POLICY_NAME" \
+  --policy-document '{
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Sid": "SecretsManagerRead",
+        "Effect": "Allow",
+        "Action": "secretsmanager:GetSecretValue",
+        "Resource": "arn:aws:secretsmanager:*:'"$ACCOUNT_ID"':secret:'"$SECRET_NAME"'-*"
+      },
+      {
+        "Sid": "CognitoRead",
+        "Effect": "Allow",
+        "Action": [
+          "cognito-idp:ListUserPools",
+          "cognito-idp:DescribeUserPool",
+          "cognito-idp:ListResourceServers"
+        ],
+        "Resource": "*"
+      }
+    ]
+  }' \
+  --query 'Policy.Arn' --output text)
+
+# Attach policy to the EKS node role
+aws iam attach-role-policy \
+  --role-name "$NODE_ROLE_NAME" \
+  --policy-arn "$POLICY_ARN"
+```
+
+> **📝 Note:** The policy grants:
+> - `secretsmanager:GetSecretValue` — scoped to the specific secret containing Cognito client credentials
+> - `cognito-idp:ListUserPools` — used to find the user pool by name
+> - `cognito-idp:DescribeUserPool` — used to retrieve the user pool domain (required for the OAuth2 token endpoint)
+> - `cognito-idp:ListResourceServers` — used to find the resource server identifier
 
 For more information about AWS Cognito, see the [AWS Cognito documentation](https://docs.aws.amazon.com/cognito/latest/developerguide/what-is-amazon-cognito.html).
 
@@ -543,7 +594,7 @@ If using Cognito OIDC, you need to create an OIDC provider and identity mapping 
 OIDC_PROVIDER_NAME="aws-cognito-oidc-provider"  # Choose a name
 
 # Get Cognito issuer URL (replace REGION and USER_POOL_ID)
-COGNITO_ISSUER="https://cognito-idp.REGION.amazonaws.com/$USER_POOL_ID"
+COGNITO_ISSUER="https://cognito-idp.$REGION.amazonaws.com/$USER_POOL_ID"
 
 curl -X POST "https://$ARTIFACTORY_URL/access/api/v1/oidc" \
   -H "Content-Type: application/json" \
@@ -564,7 +615,7 @@ For more details, see the [JFrog REST API documentation for creating OIDC config
 
 The identity mapping tells Artifactory how to map Cognito OIDC tokens to Artifactory users.
 
-> **⚠️ Important:** Ensure `expires_in` is longer than the expiry set in your daemonset. The default cache duration for AWS is **5 hours**, so set `expires_in` to at least **5 hours (18000 seconds)** or longer.
+> **⚠️ Important:** Ensure `expires_in` is longer than the `defaultCacheDuration` configured in your Helm values. For example, if `defaultCacheDuration` is `5h`, set `expires_in` to at least **18000 seconds (5 hours)** or longer. If the Artifactory token expires before the cache does, image pulls will fail with authentication errors until the cache refreshes.
 
 ```bash
 curl -X POST "https://$ARTIFACTORY_URL/access/api/v1/oidc/$OIDC_PROVIDER_NAME/identity_mappings" \
@@ -575,7 +626,7 @@ curl -X POST "https://$ARTIFACTORY_URL/access/api/v1/oidc/$OIDC_PROVIDER_NAME/id
     \"description\": \"AWS Cognito OIDC identity mapping\",
     \"claims\": {
       \"iss\": \"$COGNITO_ISSUER\",
-      \"aud\": \"$CLIENT_ID\"
+      \"client_id\": \"$CLIENT_ID\"
     },
     \"token_spec\": {
       \"username\": \"$ARTIFACTORY_USER\",
@@ -591,7 +642,7 @@ curl -X POST "https://$ARTIFACTORY_URL/access/api/v1/oidc/$OIDC_PROVIDER_NAME/id
 <summary><strong>📝 Configuration Notes</strong></summary>
 
 - The `claims.iss` must match your Cognito issuer URL
-- The `claims.aud` must match your Cognito client ID
+- The `claims.client_id` must match your Cognito client ID (Cognito access tokens use `client_id`, not `aud`)
 - The `token_spec.username` must be an existing Artifactory user
 - Ensure the user has permissions to pull images from your repositories
 
@@ -633,6 +684,20 @@ Update the values file at `./examples/aws-values.yaml` with your configuration v
 
 Update the values file at `./examples/aws-projected-sa-values.yaml` with your configuration values.
 
+#### For Cognito OIDC Method
+
+| Configuration Value | Description | Example |
+|---------------------|-------------|---------|
+| `aws_auth_method` | Authentication method | `cognito_oidc` |
+| `artifactoryUrl` | Your JFrog Artifactory URL | `your-instance.jfrog.io` |
+| `aws_cognito_user_pool_secret_name` | AWS Secrets Manager secret name containing client-id and client-secret | `jfrog-cognito-credentials` |
+| `aws_cognito_user_pool_name` | Cognito User Pool name | `jfrog-credentials-provider-pool` |
+| `aws_cognito_resource_server_name` | Cognito Resource Server name | `jfrog-resource-server` |
+| `aws_cognito_user_pool_resource_scope` | Scope name on the resource server | `read` |
+| `jfrog_oidc_provider_name` | OIDC provider name configured in Artifactory | `aws-cognito-oidc-provider` |
+
+Update the values file at `./examples/aws-cognito-oidc-values.yaml` with your configuration values.
+
 
 ### 📦 Install with Helm
 
@@ -649,7 +714,7 @@ helm repo update
 And then install using the following command - 
 
 ```bash
-# Install the credential provider
+# Install the credential provider (IAM Role Assumption)
 helm upgrade --install secret-provider jfrog/jfrog-credential-provider \
   --namespace jfrog \
   --create-namespace \
@@ -660,11 +725,22 @@ helm upgrade --install secret-provider jfrog/jfrog-credential-provider \
 OR
 
 ```bash
-# Install the credential provider
+# Install the credential provider (Projected Service Account Tokens)
 helm upgrade --install secret-provider jfrog/jfrog-credential-provider \
   --namespace jfrog \
   --create-namespace \
   -f ./examples/aws-projected-sa-values.yaml --devel
+
+```
+
+OR
+
+```bash
+# Install the credential provider (Cognito OIDC)
+helm upgrade --install secret-provider jfrog/jfrog-credential-provider \
+  --namespace jfrog \
+  --create-namespace \
+  -f ./examples/aws-cognito-oidc-values.yaml --devel
 
 ```
 
