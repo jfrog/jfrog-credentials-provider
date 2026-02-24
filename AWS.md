@@ -427,7 +427,7 @@ SECRET_NAME="jfrog-cognito-credentials"
 # Create secret
 aws secretsmanager create-secret \
   --name "$SECRET_NAME" \
-  --secret-string "{\"client_id\":\"$CLIENT_ID\",\"client_secret\":\"$CLIENT_SECRET\",\"user_pool_id\":\"$USER_POOL_ID\"}"
+  --secret-string "{\"client-id\":\"$CLIENT_ID\",\"client-secret\":\"$CLIENT_SECRET\",\"user_pool_id\":\"$USER_POOL_ID\"}"
 
 echo "Secret Name: $SECRET_NAME"
 ```
