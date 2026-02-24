@@ -90,6 +90,7 @@ providerConfig:
       # aws_cognito_user_pool_client_id: ""
       # aws_cognito_user_pool_domain_name: ""
       # aws_cognito_resource_server_name: ""
+      # aws_cognito_user_pool_resource_scope: ""
       # jfrog_oidc_provider_name: ""
     # GCP configuration
     gcp:

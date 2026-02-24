@@ -193,13 +193,12 @@ func CreateProviderConfigFromEnv(isYaml bool, providerHome string, providerConfi
 	}
 	if authMethod == "cognito_oidc" {
 		requiredVars := map[string]string{
-			"JFROG_OIDC_PROVIDER_NAME":                   os.Getenv("JFROG_OIDC_PROVIDER_NAME"),
-			"AWS_COGNITO_USER_POOL_SECRET_NAME":          os.Getenv("AWS_COGNITO_USER_POOL_SECRET_NAME"),
-			"AWS_COGNITO_USER_POOL_NAME":                 os.Getenv("AWS_COGNITO_USER_POOL_NAME"),
-			"AWS_COGNITO_USER_POOL_DOMAIN_NAME":          os.Getenv("AWS_COGNITO_USER_POOL_DOMAIN_NAME"),
-			"AWS_COGNITO_RESOURCE_SERVER_NAME":           os.Getenv("AWS_COGNITO_RESOURCE_SERVER_NAME"),
-			"ARTIFACTORY_OIDC_IDENTITY_MAPPING_USERNAME": os.Getenv("ARTIFACTORY_OIDC_IDENTITY_MAPPING_USERNAME"),
-			"ARTIFACTORY_USER":                           os.Getenv("ARTIFACTORY_USER"),
+			"JFROG_OIDC_PROVIDER_NAME": os.Getenv("JFROG_OIDC_PROVIDER_NAME"),
+			"SECRET_NAME":              os.Getenv("SECRET_NAME"),
+			"USER_POOL_NAME":           os.Getenv("USER_POOL_NAME"),
+			"RESOURCE_SERVER_NAME":     os.Getenv("RESOURCE_SERVER_NAME"),
+			"USER_POOL_RESOURCE_SCOPE": os.Getenv("USER_POOL_RESOURCE_SCOPE"),
+			"ARTIFACTORY_USER":         os.Getenv("ARTIFACTORY_USER"),
 		}
 		for key, value := range requiredVars {
 			if value == "" {
