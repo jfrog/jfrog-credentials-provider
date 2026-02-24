@@ -718,7 +718,7 @@ And then install using the following command -
 helm upgrade --install secret-provider jfrog/jfrog-credential-provider \
   --namespace jfrog \
   --create-namespace \
-  -f ./examples/aws-values.yaml --devel
+  -f ./examples/aws-values.yaml
 
 ```
 
@@ -729,7 +729,7 @@ OR
 helm upgrade --install secret-provider jfrog/jfrog-credential-provider \
   --namespace jfrog \
   --create-namespace \
-  -f ./examples/aws-projected-sa-values.yaml --devel
+  -f ./examples/aws-projected-sa-values.yaml
 
 ```
 
@@ -740,7 +740,7 @@ OR
 helm upgrade --install secret-provider jfrog/jfrog-credential-provider \
   --namespace jfrog \
   --create-namespace \
-  -f ./examples/aws-cognito-oidc-values.yaml --devel
+  -f ./examples/aws-cognito-oidc-values.yaml
 
 ```
 

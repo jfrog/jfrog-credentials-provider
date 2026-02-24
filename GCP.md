@@ -307,7 +307,7 @@ And then install using the following command -
 helm upgrade --install secret-provider jfrog/jfrog-credential-provider \
   --namespace jfrog \
   --create-namespace \
-  -f ./examples/gcp-values.yaml --devel
+  -f ./examples/gcp-values.yaml
 
 ```
 
