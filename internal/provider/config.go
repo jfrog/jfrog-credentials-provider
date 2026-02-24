@@ -129,10 +129,13 @@ func BackupConfig(isYaml bool, providerHome string, providerConfigFileName strin
 	if err != nil {
 		logs.Info("Warning: could not parse config to check for JFrog provider: " + err.Error())
 		// Default to .backup if we can't determine
+	} else if !hasJfrog && !isKubelethWatcher {
+		// to backup during merge if JFrog provider is not in the config, and is not triggered by the watcher
+		suffix = backupSuffixOriginal
 	} else if hasJfrog && isKubelethWatcher {
 		suffix = backupSuffixJfrog
 	} else {
-		logs.Info("Waiting for kubelet watcher to finish before creating backup")
+		logs.Info("jfrog provider is in the config, and is not triggered by the watcher")
 		return nil
 	}
 
@@ -314,12 +317,15 @@ func WatchKubelet(isYaml bool, providerHome string, providerConfigFileName strin
 func rollbackConfig(configPath string, logs *logger.Logger) {
 	jfrogBackup := configPath + backupSuffixJfrog
 	originalBackup := configPath + backupSuffixOriginal
+	logText := ""
 
 	var restoreFrom string
 	if _, err := os.Stat(jfrogBackup); err == nil {
 		restoreFrom = jfrogBackup
+		logText = "Rolled back to your previous working config with JFrog"
 	} else if _, err := os.Stat(originalBackup); err == nil {
 		restoreFrom = originalBackup
+		logText = "Jfrog Credential Provider has been removed from your cluster due to an error, please check the config and retry."
 	} else {
 		logs.Error("No backup files found, cannot rollback")
 		return
@@ -337,7 +343,7 @@ func rollbackConfig(configPath string, logs *logger.Logger) {
 	}
 	logs.Info("Restored config from " + restoreFrom)
 	logs.Info("Kubelet was restarting continously, so we rolled back to the most recent backup.")
-	logs.Info("Jfrog Credential Provider has been removed from your cluster, please check the config and retry.")
+	logs.Error(logText)
 
 	// will wait for kubelet to restart on its own
 }

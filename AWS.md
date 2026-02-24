@@ -490,7 +490,7 @@ ARTIFACTORY_ADMIN_TOKEN="your-admin-access-token"
 ARTIFACTORY_USER="aws-eks-user"  # User that will be mapped to AWS credentials/OIDC tokens
 ```
 
-### For IAM Role Assumption Method
+### For IAM Role Assumption Method and Projected Token Method
 
 If using IAM Role Assumption, you need to map the IAM role to an Artifactory user. This is done through Artifactory's API.
 

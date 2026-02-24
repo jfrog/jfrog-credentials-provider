@@ -334,7 +334,7 @@ func ValidateJfrogProviderConfig(config Provider, cloudProvider string) error {
 		}
 
 	case CloudProviderAzure:
-		if slices.Contains(config.TokenAttributes.RequiredServiceAccountAnnotationKeys, "JFrogExchange") {
+		if config.TokenAttributes != nil && slices.Contains(config.TokenAttributes.RequiredServiceAccountAnnotationKeys, "JFrogExchange") {
 			if GetEnvVarValue(config.Env, "azure_app_client_id") == "" || GetEnvVarValue(config.Env, "azure_app_audience") == "" || GetEnvVarValue(config.Env, "jfrog_oidc_provider_name") == "" {
 				return fmt.Errorf("ERROR in JFrog Credentials provider, environment variables missing: azure_app_client_id, azure_app_audience, jfrog_oidc_provider_name")
 			}

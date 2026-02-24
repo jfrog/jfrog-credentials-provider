@@ -80,6 +80,9 @@ providerConfig:
       enabled: false
       aws_auth_method: "assume_role"  # Options: "assume_role" or "cognito_oidc"
       aws_role_name: "dummy"
+      # Secret TTL should be greater than defaultCacheDuration
+      # only applicable for assume_role method
+      secret_ttl_seconds: 14400
       # For OIDC method, additional variables can be added here
       # aws_cognito_user_pool_secret_name: ""
       # aws_cognito_user_pool_name: ""
