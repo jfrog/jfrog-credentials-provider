@@ -2,8 +2,8 @@ apiVersion: v2
 name: jfrog-credential-provider
 description: A Helm chart for JFrog Credential Provider supporting AWS, Azure, and GCP
 type: application
-version: 0.1.0-beta.3
-appVersion: "0.1.0-beta.3"
+version: 1.0.0
+appVersion: "1.0.0"
 keywords:
   - jfrog
   - credential-provider

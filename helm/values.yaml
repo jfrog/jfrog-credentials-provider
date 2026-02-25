@@ -3,7 +3,7 @@
 
 # Download URL for the credential provider binary
 # The chart will automatically append the architecture suffix (-amd64 or -arm64)
-downloadUrl: "https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/0.1.0-beta.6/jfrog-credential-provider-linux"
+downloadUrl: "https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/1.0.0/jfrog-credential-provider-linux"
 
 # Affinity rules for pod scheduling
 affinity: {}
