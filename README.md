@@ -2,10 +2,6 @@
 
 A [Kubernetes kubelet credential provider](https://kubernetes.io/docs/tasks/administer-cluster/kubelet-credential-provider/) **for Amazon EKS, Azure AKS and Google GKE** that enables seamless, passwordless authentication with JFrog Artifactory for container image pulls, eliminating the need for manual image pull secret management.
 
-> ⚠️ **Beta Release Notice**
-> 
-> This project is currently in its **beta phase**, meaning it's still under active development. We strongly recommend thorough testing in non-production environments before deployment to any production system.
-
 ## 📋 Overview
 
 The JFrog Kubelet Credential Provider leverages the native Kubernetes kubelet Credential Provider feature (the same standard used by Amazon ECR, Google Cloud, and Microsoft Azure for their native registry authentication) to dynamically retrieve credentials for pulling container images from JFrog Artifactory. Instead of using long-lived, static passwords or API keys, this solution uses temporary, identity-based credentials that are dynamically generated on-demand.

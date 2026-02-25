@@ -5,7 +5,7 @@ on:
       JFROG_CREDENTIAL_PLUGIN_BINARY_URL:
         description: 'BINARY_URL (CI adds arch suffix automatically)'
         required: true
-        default: "https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/0.1.0-beta.1/jfrog-credential-provider-linux"
+        default: "https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/1.0.0/jfrog-credential-provider-linux"
         type: string
       DISABLE_TERRAFORM_DESTROY:
         description: 'DISABLE_TERRAFORM_DESTROY'
