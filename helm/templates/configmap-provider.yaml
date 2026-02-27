@@ -60,6 +60,10 @@ data:
       "name": "artifactory_url",
       "value": {{ .artifactoryUrl | toJson }}
     },
+    {
+      "name": "disable_provider_autoupdate",
+      "value": "{{ not $.Values.autoUpgrade }}"
+    },
     {{- if eq .aws.aws_auth_method "cognito_oidc" }}
     {
       "name": "secret_name",
@@ -107,6 +111,8 @@ data:
       value: "{{ .gcp.jfrog_oidc_audience }}"
     - name: jfrog_oidc_provider_name
       value: "{{ .gcp.jfrog_oidc_provider_name }}"
+    - name: disable_provider_autoupdate
+      value: "{{ not $.Values.autoUpgrade }}"
     {{- end }}
 
     {{- if eq $cloudProvider "azure" }}
@@ -123,6 +129,8 @@ data:
       value: "{{ .azure.azure_app_audience }}"
     - name: jfrog_oidc_provider_name
       value: "{{ .azure.jfrog_oidc_provider_name }}"
+    - name: disable_provider_autoupdate
+      value: "{{ not $.Values.autoUpgrade }}"
     {{- end }}
     {{- end }}
 
