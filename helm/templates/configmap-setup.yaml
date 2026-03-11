@@ -33,7 +33,7 @@ data:
     {{- end }}
     
 
-    {{- range .Values.providerConfig }}
+    {{- $providerName := "jfrog-credentials-provider"}}
     JFROG_CONFIG_FILE="jfrog-provider"
 
     export KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR=$(dirname ${KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH})
@@ -56,7 +56,7 @@ data:
 
     # Pull the jfrog-credential-provider binary
     echo "Downloading the jfrog-credential-provider binary (${JFROG_CREDENTIAL_PROVIDER_BINARY_URL})"
-    curl -L -f -o ${KUBELET_MOUNT_PATH}${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ .name }} "${JFROG_CREDENTIAL_PROVIDER_BINARY_URL}"
+    curl -L -f -o ${KUBELET_MOUNT_PATH}${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ $providerName }} "${JFROG_CREDENTIAL_PROVIDER_BINARY_URL}"
 
     if [[ $? -ne 0 ]]; then
         echo "Downloading (${JFROG_CREDENTIAL_PROVIDER_BINARY_URL}) failed"
@@ -69,18 +69,18 @@ data:
         echo "Successfully downloaded the jfrog-credential-provider binary from Artifactory"
         # Make the binary executable
         echo "Making the jfrog-credential-provider binary executable"
-        chmod +x ${KUBELET_MOUNT_PATH}${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ .name }}
+        chmod +x ${KUBELET_MOUNT_PATH}${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ $providerName }}
 
         {{- if or (eq $cloudProvider "gcp") (eq $cloudProvider "azure") }}
         echo "Copying the /etc/${JFROG_CONFIG_FILE}.yaml configuration file to ${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}/${JFROG_CONFIG_FILE}.yaml"
         cp -f "/etc/${JFROG_CONFIG_FILE}.yaml" "${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}/${JFROG_CONFIG_FILE}.yaml"
         sleep 2 # Wait a bit to ensure the file is copied before proceeding
-        nsenter -t 1 -m -p -- ${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ .name }} add-provider-config --yaml --provider-home "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}" --provider-config "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_FILE_NAME}"
+        nsenter -t 1 -m -p -- ${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ $providerName }} add-provider-config --yaml --provider-home "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}" --provider-config "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_FILE_NAME}"
         {{- else if eq $cloudProvider "aws" }}
         echo "Copying the /etc/${JFROG_CONFIG_FILE}.json configuration file to ${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}/${JFROG_CONFIG_FILE}.json"
         cp -f "/etc/${JFROG_CONFIG_FILE}.json" "${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}/${JFROG_CONFIG_FILE}.json"
         sleep 2 # Wait a bit to ensure the file is copied before proceeding
-        nsenter -t 1 -m -p -- ${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ .name }} add-provider-config --provider-home "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}" --provider-config "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_FILE_NAME}"
+        nsenter -t 1 -m -p -- ${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ $providerName }} add-provider-config --provider-home "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}" --provider-config "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_FILE_NAME}"
         {{- end }}
 
 
@@ -101,9 +101,9 @@ data:
 
     log "Starting kubelet health watcher (60s)"
     {{- if or (eq $cloudProvider "gcp") (eq $cloudProvider "azure") }}
-    nsenter -t 1 -m -p -- systemd-run --scope ${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ .name }} watch-kubelet --yaml --provider-home "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}" --provider-config "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_FILE_NAME}" --timeout 60 &
+    nsenter -t 1 -m -p -- systemd-run --scope ${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ $providerName }} watch-kubelet --yaml --provider-home "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}" --provider-config "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_FILE_NAME}" --timeout 60 &
     {{- else if eq $cloudProvider "aws" }}
-    nsenter -t 1 -m -p -- systemd-run --scope ${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ .name }} watch-kubelet --provider-home "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}" --provider-config "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_FILE_NAME}" --timeout 60 &
+    nsenter -t 1 -m -p -- systemd-run --scope ${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ $providerName }} watch-kubelet --provider-home "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}" --provider-config "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_FILE_NAME}" --timeout 60 &
     {{- end }}
 
     log "Restarting the kubelet service"
@@ -114,6 +114,4 @@ data:
 
     # Logs of credential provider for 30 seconds
     nsenter -t 1 -m -p -- timeout 30s tail -n 30 -f /var/log/jfrog-credential-provider.log || true
-
-    {{- end }}
 
