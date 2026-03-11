@@ -7,147 +7,141 @@ data:
   {{- $cloudProvider := include "jfrog-credential-provider.cloudProvider" . }}
   {{- if or (eq $cloudProvider "azure") (eq $cloudProvider "gcp") }}
   jfrog-provider.yaml: |
+    {{- range .Values.providerConfig }}
+    - name: {{ .name }}
+      apiVersion: credentialprovider.kubelet.k8s.io/v1
+      matchImages: {{ .matchImages | toJson }}
+      defaultCacheDuration: {{ .defaultCacheDuration }}
+      {{- if and .tokenAttributes .tokenAttributes.enabled (eq $cloudProvider "azure") }}
+      tokenAttributes:
+      {{- if .azure.azure_app_audience }}
+        serviceAccountTokenAudience: {{ .azure.azure_app_audience }}
+      {{- else }}
+        serviceAccountTokenAudience: api://AzureADTokenExchange
+      {{- end }}
+        cacheType: ServiceAccount
+        requireServiceAccount: true
+        requiredServiceAccountAnnotationKeys:
+          - azure.workload.identity/client-id
+          - JFrogExchange
+      {{- end }}
+      {{- if and .tokenAttributes .tokenAttributes.enabled (eq $cloudProvider "gcp") }}
+      tokenAttributes:
+      {{- if .gcp.jfrog_oidc_audience }}
+        serviceAccountTokenAudience: {{ .gcp.jfrog_oidc_audience }}
+      {{- else }}
+        serviceAccountTokenAudience: "artifactory"
+      {{- end }}
+        cacheType: ServiceAccount
+        requireServiceAccount: true
+        requiredServiceAccountAnnotationKeys:
+          - iam.gke.io/gcp-service-account
+          - JFrogExchange
+      {{- end }}
+      {{- if eq $cloudProvider "gcp" }}
+      env:
+      - name: artifactory_url
+        value: "{{ .artifactoryUrl }}"
+      - name: google_service_account_email
+        value: "{{ .gcp.google_service_account_email }}"
+      - name: jfrog_oidc_audience
+        value: "{{ .gcp.jfrog_oidc_audience }}"
+      - name: jfrog_oidc_provider_name
+        value: "{{ .gcp.jfrog_oidc_provider_name }}"
+      - name: disable_provider_autoupdate
+        value: "{{ not $.Values.autoUpgrade }}"
+      {{- end }}
+      {{- if eq $cloudProvider "azure" }}
+      env:
+      - name: artifactory_url
+        value: "{{ .artifactoryUrl }}"
+      - name: azure_app_client_id
+        value: "{{ .azure.azure_app_client_id }}"
+      - name: azure_tenant_id
+        value: "{{ .azure.azure_tenant_id }}"
+      - name: azure_nodepool_client_id
+        value: "{{ .azure.azure_nodepool_client_id }}"
+      - name: azure_app_audience
+        value: "{{ .azure.azure_app_audience }}"
+      - name: jfrog_oidc_provider_name
+        value: "{{ .azure.jfrog_oidc_provider_name }}"
+      - name: disable_provider_autoupdate
+        value: "{{ not $.Values.autoUpgrade }}"
+      {{- end }}
+    {{- end }}
   {{- else if (eq $cloudProvider "aws") }}
   jfrog-provider.json: |
+    [
+    {{- range $i, $p := .Values.providerConfig }}
+    {{- if $i }},{{- end }}
     {
-  {{- end }}
-
-    {{- range .Values.providerConfig }}
-    {{- if or (eq $cloudProvider "azure") (eq $cloudProvider "gcp") }}
-    name: {{ .name }}
-    apiVersion: credentialprovider.kubelet.k8s.io/v1
-    matchImages: {{ .matchImages | toJson }}
-    defaultCacheDuration: {{ .defaultCacheDuration }}
-    {{- else if eq $cloudProvider "aws" }}
-    "name": "{{ .name  }}",
-    "matchImages": {{ .matchImages | toJson }},
-    "defaultCacheDuration": {{ .defaultCacheDuration | toJson }},
-    "apiVersion": "credentialprovider.kubelet.k8s.io/v1",
-    {{- end }}
-
-    {{- if and .tokenAttributes .tokenAttributes.enabled (eq $cloudProvider "aws") }}
-    "tokenAttributes": {
-      "serviceAccountTokenAudience": "sts.amazonaws.com",
-      "cacheType": "ServiceAccount",
-      "requireServiceAccount": false,
-      "optionalServiceAccountAnnotationKeys": [
-        "eks.amazonaws.com/role-arn",
-        "JFrogExchange"
+      "name": "{{ $p.name }}",
+      "matchImages": {{ $p.matchImages | toJson }},
+      "defaultCacheDuration": {{ $p.defaultCacheDuration | toJson }},
+      "apiVersion": "credentialprovider.kubelet.k8s.io/v1",
+      {{- if and $p.tokenAttributes $p.tokenAttributes.enabled }}
+      "tokenAttributes": {
+        "serviceAccountTokenAudience": "sts.amazonaws.com",
+        "cacheType": "ServiceAccount",
+        "requireServiceAccount": false,
+        "optionalServiceAccountAnnotationKeys": [
+          "eks.amazonaws.com/role-arn",
+          "JFrogExchange"
+        ]
+      },
+      {{- end }}
+      "env": [
+        {
+          "name": "aws_auth_method",
+          "value": {{ $p.aws.aws_auth_method | toJson }}
+        },
+        {
+          "name": "artifactory_url",
+          "value": {{ $p.artifactoryUrl | toJson }}
+        },
+        {
+          "name": "disable_provider_autoupdate",
+          "value": "{{ not $.Values.autoUpgrade }}"
+        },
+        {{- if $p.aws.aws_region }}
+        {
+          "name": "aws_region",
+          "value": {{ $p.aws.aws_region | toJson }}
+        },
+        {{- end }}
+        {{- if eq $p.aws.aws_auth_method "cognito_oidc" }}
+        {
+          "name": "secret_name",
+          "value": {{ $p.aws.aws_cognito_user_pool_secret_name | toJson }}
+        },
+        {
+          "name": "user_pool_name",
+          "value": {{ $p.aws.aws_cognito_user_pool_name | toJson }}
+        },
+        {
+          "name": "resource_server_name",
+          "value": {{ $p.aws.aws_cognito_resource_server_name | toJson }}
+        },
+        {
+          "name": "user_pool_resource_scope",
+          "value": {{ $p.aws.aws_cognito_user_pool_resource_scope | toJson }}
+        },
+        {
+          "name": "jfrog_oidc_provider_name",
+          "value": {{ $p.aws.jfrog_oidc_provider_name | toJson }}
+        }
+        {{- else if eq $p.aws.aws_auth_method "assume_role" }}
+        {
+          "name": "aws_role_name",
+          "value": {{ $p.aws.aws_role_name | toJson }}
+        },
+        {
+          "name": "secret_ttl_seconds",
+          "value": {{- if $p.aws.secret_ttl_seconds }}{{ $p.aws.secret_ttl_seconds | toJson }}{{ else }}"14400"{{ end }}
+        }
+        {{- end }}
       ]
-    },
-    {{- else if and .tokenAttributes .tokenAttributes.enabled (eq $cloudProvider "azure") }}
-    tokenAttributes:
-      {{- if .azure.azure_app_audience }}
-      serviceAccountTokenAudience: {{ .azure.azure_app_audience }}
-      {{- else}}
-      serviceAccountTokenAudience: api://AzureADTokenExchange
-      {{- end }}
-      cacheType: ServiceAccount
-      requireServiceAccount: true
-      requiredServiceAccountAnnotationKeys:
-        - azure.workload.identity/client-id
-        - JFrogExchange
-    {{- else if and .tokenAttributes .tokenAttributes.enabled (eq $cloudProvider "gcp") }}
-    tokenAttributes:
-      {{- if .gcp.jfrog_oidc_audience }}
-      serviceAccountTokenAudience: {{ .gcp.jfrog_oidc_audience }}
-      {{- else}}
-      serviceAccountTokenAudience: "artifactory"
-      {{- end }}
-      cacheType: ServiceAccount
-      requireServiceAccount: true
-      requiredServiceAccountAnnotationKeys:
-        - iam.gke.io/gcp-service-account
-        - JFrogExchange
-    {{- end }}
-
-  {{- if eq $cloudProvider "aws" }}
-    "env": [
-    {
-      "name": "aws_auth_method",
-      "value": {{ .aws.aws_auth_method | toJson }}
-    },
-    {
-      "name": "artifactory_url",
-      "value": {{ .artifactoryUrl | toJson }}
-    },
-    {
-      "name": "disable_provider_autoupdate",
-      "value": "{{ not $.Values.autoUpgrade }}"
-    },
-    {{- if .aws.aws_region }}
-    {
-      "name": "aws_region",
-      "value": {{ .aws.aws_region | toJson }}
-    },
-    {{- end }}
-    {{- if eq .aws.aws_auth_method "cognito_oidc" }}
-    {
-      "name": "secret_name",
-      "value": {{ .aws.aws_cognito_user_pool_secret_name | toJson }}
-    },
-    {
-      "name": "user_pool_name",
-      "value": {{ .aws.aws_cognito_user_pool_name | toJson }}
-    },
-    {
-      "name": "resource_server_name",
-      "value": {{ .aws.aws_cognito_resource_server_name | toJson }}
-    },
-    {
-      "name": "user_pool_resource_scope",
-      "value": {{ .aws.aws_cognito_user_pool_resource_scope | toJson }}
-    },
-    {
-      "name": "jfrog_oidc_provider_name",
-      "value": {{ .aws.jfrog_oidc_provider_name | toJson }}
     }
+    {{- end }}
     ]
-    }
-    {{- else if eq .aws.aws_auth_method "assume_role" }}
-    {
-      "name": "aws_role_name",
-      "value": {{ .aws.aws_role_name | toJson }}
-    },
-    {
-      "name": "secret_ttl_seconds",
-      "value": {{- if .aws.secret_ttl_seconds }}{{ .aws.secret_ttl_seconds | toJson }}{{ else }}"14400"{{ end }}
-    }
-    ]
-    }
-    {{- end }}
-    {{- end }}
-
-    {{- if eq $cloudProvider "gcp" }}
-    env:
-    - name: artifactory_url
-      value: "{{ .artifactoryUrl }}"
-    - name: google_service_account_email
-      value: "{{ .gcp.google_service_account_email }}"
-    - name: jfrog_oidc_audience
-      value: "{{ .gcp.jfrog_oidc_audience }}"
-    - name: jfrog_oidc_provider_name
-      value: "{{ .gcp.jfrog_oidc_provider_name }}"
-    - name: disable_provider_autoupdate
-      value: "{{ not $.Values.autoUpgrade }}"
-    {{- end }}
-
-    {{- if eq $cloudProvider "azure" }}
-    env:
-    - name: artifactory_url
-      value: "{{ .artifactoryUrl }}"
-    - name: azure_app_client_id
-      value: "{{ .azure.azure_app_client_id }}"
-    - name: azure_tenant_id
-      value: "{{ .azure.azure_tenant_id }}"
-    - name: azure_nodepool_client_id
-      value: "{{ .azure.azure_nodepool_client_id }}"
-    - name: azure_app_audience
-      value: "{{ .azure.azure_app_audience }}"
-    - name: jfrog_oidc_provider_name
-      value: "{{ .azure.jfrog_oidc_provider_name }}"
-    - name: disable_provider_autoupdate
-      value: "{{ not $.Values.autoUpgrade }}"
-    {{- end }}
-    {{- end }}
-
+  {{- end }}

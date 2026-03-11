@@ -232,43 +232,38 @@ func ReadFile(filePath string, isYaml bool, v interface{}, cloudProvider string)
 		if err := ValidateJfrogProviderConfig(*provider, cloudProvider); err != nil {
 			return fmt.Errorf("validation failed for file %s: %w", filePath, err)
 		}
+	} else if providers, ok := v.(*[]Provider); ok {
+		for _, p := range *providers {
+			if err := ValidateJfrogProviderConfig(p, cloudProvider); err != nil {
+				return fmt.Errorf("validation failed for file %s: %w", filePath, err)
+			}
+		}
 	} else {
-		return fmt.Errorf("invalid type for validation, expected CredentialProviderConfig")
+		return fmt.Errorf("invalid type for validation, expected CredentialProviderConfig, Provider, or []Provider")
 	}
 
 	return nil
 }
 
 func MergeFiles(file1, file2, outputFile string, isYaml, dryRun bool, logs *logger.Logger, cloudProvider string) error {
-	// Read and parse the first file
 	var config CredentialProviderConfig
-
-	// cloudProvider is being passed to be used by the validateJfrogProviderConfig function
 	if err := ReadFile(file1, isYaml, &config, cloudProvider); err != nil {
 		return err
 	}
 
-	// Read the provider of arrays
-	var providersArray []Provider
-	var mergeErr error
-	var mergedData []byte
-	data, err := os.ReadFile(file2)
-	if err != nil {
-		return fmt.Errorf("failed to read file %s: %w", file2, err)
+	var newProviders []Provider
+	if err := ReadFile(file2, isYaml, &newProviders, cloudProvider); err != nil {
+		return err
 	}
 
-	providerExist := checkProviderExists(config.Providers, provider)
-	// Add the new provider to the config
-	if !providerExist {
-		config.Providers = append(config.Providers, provider)
-	} else {
-		// Delete the existing provider with the same artifactory url
+	// Upsert each new provider using artifactory_url as the primary key
+	for _, newProvider := range newProviders {
 		config.Providers = slices.DeleteFunc(config.Providers, func(p Provider) bool {
-			return GetEnvVarValue(p.Env, "artifactory_url") == GetEnvVarValue(provider.Env, "artifactory_url")
+			return GetEnvVarValue(p.Env, "artifactory_url") == GetEnvVarValue(newProvider.Env, "artifactory_url")
 		})
-		// Add the new provider to the config
-		config.Providers = append(config.Providers, provider)
+		config.Providers = append(config.Providers, newProvider)
 	}
+
 	var mergedData []byte
 	var err error
 	if isYaml {
@@ -291,15 +286,6 @@ func MergeFiles(file1, file2, outputFile string, isYaml, dryRun bool, logs *logg
 	}
 	logs.Info("Merged config written to " + outputFile)
 	return nil
-}
-
-func checkProviderExists(providers []Provider, newProvider Provider) bool {
-	for _, provider := range providers {
-		if GetEnvVarValue(provider.Env, "artifactory_url") == GetEnvVarValue(newProvider.Env, "artifactory_url") {
-			return true
-		}
-	}
-	return false
 }
 
 func ValidateProviderConfig(config []Provider) error {
