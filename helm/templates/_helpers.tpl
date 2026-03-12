@@ -127,3 +127,29 @@ Default RBAC rules for azure with service account token projection
   verbs: ["get", "list"]
 {{- end }}
 
+
+{{/*
+Default RBAC rules for gcp with service account token projection
+*/}}
+{{- define "jfrog-credential-provider.defaultRBACRulesGcp" }}
+- apiGroups: [""]
+  resources:
+    - {{ include "jfrog-credential-provider.jfrogGCPAudience" . | quote }}
+  verbs:
+    - request-serviceaccounts-token-audience
+{{- end }}
+
+{{/*
+Fetching JFrog audience from values configuration
+*/}}
+{{- define "jfrog-credential-provider.jfrogGCPAudience" -}}
+{{- $default := "artifactory" -}}
+{{- $audience := $default -}}
+{{- range .Values.providerConfig | default list }}
+  {{- if and (.tokenAttributes) (.gcp) (.tokenAttributes.enabled) (.gcp.enabled) }}
+    {{- $audience = (default $default .gcp.jfrog_oidc_audience) }}
+    {{- break -}}
+  {{- end }}
+{{- end }}
+{{- $audience -}}
+{{- end }}
