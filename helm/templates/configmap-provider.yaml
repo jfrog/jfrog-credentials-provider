@@ -24,8 +24,9 @@ data:
     "defaultCacheDuration": {{ .defaultCacheDuration | toJson }},
     "apiVersion": "credentialprovider.kubelet.k8s.io/v1",
     {{- end }}
-    
-    {{- /* This is only supported for AWS and Azure at the moment */ -}}
+
+    {{- /* This is only supported for AWS, Azure and GCP at the moment */ -}}
+
     {{- if and .tokenAttributes .tokenAttributes.enabled (eq $cloudProvider "aws") }}
     "tokenAttributes": {
       "serviceAccountTokenAudience": "sts.amazonaws.com",
@@ -38,15 +39,27 @@ data:
     },
     {{- else if and .tokenAttributes .tokenAttributes.enabled (eq $cloudProvider "azure") }}
     tokenAttributes:
-    {{- if .azure.azure_app_audience }}
+      {{- if .azure.azure_app_audience }}
       serviceAccountTokenAudience: {{ .azure.azure_app_audience }}
-    {{- else}}
+      {{- else}}
       serviceAccountTokenAudience: api://AzureADTokenExchange
-    {{- end }}
+      {{- end }}
       cacheType: ServiceAccount
       requireServiceAccount: true
       requiredServiceAccountAnnotationKeys:
         - azure.workload.identity/client-id
+        - JFrogExchange
+    {{- else if and .tokenAttributes .tokenAttributes.enabled (eq $cloudProvider "gcp") }}
+    tokenAttributes:
+      {{- if .gcp.jfrog_oidc_audience }}
+      serviceAccountTokenAudience: {{ .gcp.jfrog_oidc_audience }}
+      {{- else}}
+      serviceAccountTokenAudience: "artifactory"
+      {{- end }}
+      cacheType: ServiceAccount
+      requireServiceAccount: true
+      requiredServiceAccountAnnotationKeys:
+        - iam.gke.io/gcp-service-account
         - JFrogExchange
     {{- end }}
 

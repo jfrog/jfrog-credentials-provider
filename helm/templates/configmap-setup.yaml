@@ -31,7 +31,6 @@ data:
     export JFROG_CREDENTIAL_PROVIDER_BINARY_DIR="/home/kubernetes/bin"
     export KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH="/etc/srv/kubernetes/cri_auth_config.yaml"
     {{- end }}
-    
 
     {{- range .Values.providerConfig }}
     JFROG_CONFIG_FILE="jfrog-provider"

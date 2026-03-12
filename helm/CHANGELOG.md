@@ -2,6 +2,9 @@
 
 All notable changes to this Helm chart will be documented in this file.
 
+## [1.0.1] - 12th Mar, 2026
+* Added KEP-4412 - Pod Level Identity Support For JFrog Artifactory on GCP
+
 ## [1.0.0] - 23rd Feb, 2026
 * Allow using an existing ServiceAccount when `serviceAccount.create=false`
 * Fixed `defaultCacheDuration` for AWS

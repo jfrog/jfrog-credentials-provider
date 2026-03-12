@@ -1,5 +1,5 @@
 {{- $cloudProvider := include "jfrog-credential-provider.cloudProvider" . }}
-{{- if and .Values.rbac.create (or (eq $cloudProvider "aws") (eq $cloudProvider "azure")) }}
+{{- if and .Values.rbac.create (or (eq $cloudProvider "aws") (eq $cloudProvider "azure") (eq $cloudProvider "gcp")) }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
