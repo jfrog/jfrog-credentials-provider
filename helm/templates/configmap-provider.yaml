@@ -60,6 +60,12 @@ data:
       "name": "artifactory_url",
       "value": {{ .artifactoryUrl | toJson }}
     },
+    {{- if .aws.aws_region }}
+    {
+      "name": "aws_region",
+      "value": {{ .aws.aws_region | toJson }}
+    },
+    {{- end }}
     {{- if eq .aws.aws_auth_method "cognito_oidc" }}
     {
       "name": "secret_name",
