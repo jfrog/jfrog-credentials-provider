@@ -24,6 +24,7 @@ import (
 	"jfrog-credential-provider/internal/utils"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -231,14 +232,18 @@ func GetAWSSignedRequest(s *service.Service, ctx context.Context, serviceAccount
 	}
 	var credentials TempCredentials
 
-	// get aws region, failure in this operation will not affect the request signing and we will try and sign with * region
-	region, err := getAWSRegion(s, ctx, token)
-	if err != nil {
-		s.Logger.Info("error getting AWS region :" + err.Error() + "using default region *")
-		region = "*"
-
+	// Determine AWS region: prefer explicit env var, then EC2 metadata, then fallback to "*"
+	region := os.Getenv("aws_region")
+	if region != "" {
+		s.Logger.Info("Using AWS region from aws_region env var: " + region)
 	} else {
-		s.Logger.Info("Region from SDK :" + region)
+		region, err = getAWSRegion(s, ctx, token)
+		if err != nil {
+			s.Logger.Info("error getting AWS region: " + err.Error() + ", using default region *")
+			region = "*"
+		} else {
+			s.Logger.Info("Region from EC2 metadata: " + region)
+		}
 	}
 
 	if awsAuthMethod == "assume_role" {
@@ -269,8 +274,12 @@ func GetAWSSignedRequest(s *service.Service, ctx context.Context, serviceAccount
 		RegionName:   region,
 		SessionToken: credentials.Token,
 	}
-	req, err := signer.SignV4a("GET",
-		"https://sts.amazonaws.com?Action=GetCallerIdentity&Version=2011-06-15", "sts", *creds)
+	stsURL := "https://sts.amazonaws.com?Action=GetCallerIdentity&Version=2011-06-15"
+	if region != "*" && region != "" {
+		stsURL = fmt.Sprintf("https://sts.%s.amazonaws.com?Action=GetCallerIdentity&Version=2011-06-15", region)
+	}
+	s.Logger.Info("Using STS endpoint: " + stsURL)
+	req, err := signer.SignV4a("GET", stsURL, "sts", *creds)
 	if err != nil {
 		return nil, fmt.Errorf("Error signing the request: %s", err)
 	}

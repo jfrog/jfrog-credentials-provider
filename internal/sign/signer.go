@@ -409,11 +409,16 @@ func SignV4a(method string, url string, service string, awsCreds AwsCredentials)
 
 	req, _ := http.NewRequest(method, url, nil)
 
+	regionSet := []string{"*"}
+	if awsCreds.RegionName != "" && awsCreds.RegionName != "*" {
+		regionSet = []string{awsCreds.RegionName}
+	}
+
 	signer := &httpSigner{
 		Request:     req,
 		PayloadHash: `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`,
 		ServiceName: service,
-		RegionSet:   []string{"*"},
+		RegionSet:   regionSet,
 		Credentials: key,
 		Time:        time.Now().UTC(),
 	}

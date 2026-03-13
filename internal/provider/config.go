@@ -163,6 +163,7 @@ func CreateProviderConfigFromEnv(isYaml bool, providerHome string, providerConfi
 	addEnvVar("artifactory_url", os.Getenv("ARTIFACTORY_URL"))
 	addEnvVar("artifactory_user", os.Getenv("ARTIFACTORY_USER"))
 	addEnvVar("aws_auth_method", os.Getenv("AWS_AUTH_METHOD"))
+	addEnvVar("aws_region", os.Getenv("AWS_REGION"))
 	addEnvVar("aws_role_name", os.Getenv("AWS_ROLE_NAME"))
 	addEnvVar("secret_name", os.Getenv("SECRET_NAME"))
 	addEnvVar("secret_ttl_seconds", os.Getenv("SECRET_TTL_SECONDS"))
