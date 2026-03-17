@@ -267,19 +267,31 @@ func GetAWSSignedRequest(s *service.Service, ctx context.Context, serviceAccount
 			Token:           *credentialsWebIdentity.SessionToken}
 	}
 
-	// getting signed request headers for AWS STS GetCallerIdentity call
-	creds := &signer.AwsCredentials{
+	creds := signer.AwsCredentials{
 		AccessKey:    credentials.AccessKeyId,
 		SecretKey:    credentials.SecretAccessKey,
 		RegionName:   region,
 		SessionToken: credentials.Token,
 	}
-	stsURL := "https://sts.amazonaws.com?Action=GetCallerIdentity&Version=2011-06-15"
+	stsGlobalURL := "https://sts.amazonaws.com?Action=GetCallerIdentity&Version=2011-06-15"
+
 	if region != "*" && region != "" {
-		stsURL = fmt.Sprintf("https://sts.%s.amazonaws.com?Action=GetCallerIdentity&Version=2011-06-15", region)
+		stsRegionalURL := fmt.Sprintf("https://sts.%s.amazonaws.com?Action=GetCallerIdentity&Version=2011-06-15", region)
+		s.Logger.Info("Using regional STS endpoint: " + stsRegionalURL)
+		req, err := signer.SignV4a("GET", stsRegionalURL, "sts", creds)
+		if err != nil {
+			s.Logger.Info("Regional signing failed, falling back to global STS endpoint: " + stsGlobalURL)
+			creds.RegionName = "*"
+			req, err = signer.SignV4a("GET", stsGlobalURL, "sts", creds)
+			if err != nil {
+				return nil, fmt.Errorf("Error signing the request: %s", err)
+			}
+		}
+		return req, nil
 	}
-	s.Logger.Info("Using STS endpoint: " + stsURL)
-	req, err := signer.SignV4a("GET", stsURL, "sts", *creds)
+
+	s.Logger.Info("Using global STS endpoint: " + stsGlobalURL)
+	req, err := signer.SignV4a("GET", stsGlobalURL, "sts", creds)
 	if err != nil {
 		return nil, fmt.Errorf("Error signing the request: %s", err)
 	}

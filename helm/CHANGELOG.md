@@ -2,8 +2,9 @@
 
 All notable changes to this Helm chart will be documented in this file.
 
-## [1.0.1] - 28th Feb, 2026
+## [1.0.1] - 18th Mar, 2026
 * Added support for disabling auto-upgrade of binary through `autoUpgrade`
+* Added support for `aws_region` for `assume_role` authentication method
 
 ## [1.0.0] - 23rd Feb, 2026
 * Allow using an existing ServiceAccount when `serviceAccount.create=false`
