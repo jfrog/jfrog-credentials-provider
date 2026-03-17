@@ -2,8 +2,9 @@
 
 All notable changes to this Helm chart will be documented in this file.
 
-## [1.0.1] - 28th Feb, 2026
+## [1.0.1] - 17th Mar, 2026
 * Added support for disabling auto-upgrade of binary through `autoUpgrade`
+* Added KEP-4412 - Pod Level Identity Support For JFrog Artifactory on GCP
 
 ## [1.0.0] - 23rd Feb, 2026
 * Allow using an existing ServiceAccount when `serviceAccount.create=false`
