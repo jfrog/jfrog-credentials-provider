@@ -143,7 +143,7 @@ func cloudProviderAuth(svc *service.Service, ctx context.Context, logs *logger.L
 		return rtUsername, rtToken
 	case utils.CloudProviderGoogle:
 		logs.Debug("Detected Google cloud provider")
-		rtUsername, rtToken = handleGoogleAuth(svc, ctx, logs, artifactoryUrl)
+		rtUsername, rtToken = handleGoogleAuth(svc, ctx, logs, artifactoryUrl, request)
 		return rtUsername, rtToken
 	default:
 		logs.Exit("ERROR in JFrog Credentials provider, cloud_provider value should be either aws, azure, or google", 1)
@@ -256,6 +256,7 @@ func handleAzureAuth(svc *service.Service, ctx context.Context, logs *logger.Log
 			logs.Info(fmt.Sprintf("getting envs - azureAppClientId: %s, azureNodepoolClientId: %s, azureAppTenantId: %s, azureAppAudience: %s, jfrogOidcProviderName: %s",
 				azureAppClientId, azureNodepoolClientId, azureAppTenantId, azureAppAudience, jfrogOidcProviderName))
 		}
+		logs.Info("Service Account Token obtained using Node Identity (VM Service Account)")
 		// Get Azure OIDC token
 		token, err = handlers.GetAzureOIDCToken(svc, ctx, azureAppTenantId, azureAppClientId, azureNodepoolClientId, azureAppAudience)
 	} else {
@@ -265,6 +266,7 @@ func handleAzureAuth(svc *service.Service, ctx context.Context, logs *logger.Log
 			logs.Info(fmt.Sprintf("getting envs - azureAppClientId: %s, azureAppAudience: %s, jfrogOidcProviderName: %s",
 				azureAppClientId, azureAppAudience, jfrogOidcProviderName))
 		}
+		logs.Info("Service Account Token obtained using Pod Identity (Kubernetes Workload Identity)")
 		token = request.ServiceAccountToken
 	}
 	if err != nil {
@@ -280,12 +282,13 @@ func handleAzureAuth(svc *service.Service, ctx context.Context, logs *logger.Log
 	return rtUsername, rtToken
 }
 
-func handleGoogleAuth(svc *service.Service, ctx context.Context, logs *logger.Logger, artifactoryUrl string) (string, string) {
+func handleGoogleAuth(svc *service.Service, ctx context.Context, logs *logger.Logger, artifactoryUrl string, request utils.CredentialProviderRequest) (string, string) {
 	// get required env variables
 	googleServiceAccountEmail := utils.GetEnvs(logs, "google_service_account_email", "")
 	jfrogOidcProviderAudience := utils.GetEnvs(logs, "jfrog_oidc_audience", "")
 	jfrogOidcProviderName := utils.GetEnvs(logs, "jfrog_oidc_provider_name", "")
-
+	var token string
+	var err error
 	if googleServiceAccountEmail == "" || jfrogOidcProviderAudience == "" || jfrogOidcProviderName == "" {
 		logs.Exit("ERROR in JFrog Credentials provider, environment variables missing: google_service_account_email, jfrog_oidc_audience, jfrog_oidc_provider_name", 1)
 	} else {
@@ -293,10 +296,16 @@ func handleGoogleAuth(svc *service.Service, ctx context.Context, logs *logger.Lo
 			googleServiceAccountEmail, jfrogOidcProviderAudience, jfrogOidcProviderName))
 	}
 
-	// Get Google OIDC token
-	token, err := handlers.GetGoogleOIDCToken(svc, ctx, googleServiceAccountEmail, jfrogOidcProviderAudience)
-	if err != nil {
-		logs.Exit("ERROR in GetGoogleOIDCToken :"+err.Error(), 1)
+	if request.ServiceAccountAnnotations["JFrogExchange"] == "true" {
+		logs.Info("Service Account Token obtained using Pod Identity (Kubernetes Workload Identity)")
+		token = request.ServiceAccountToken
+	} else {
+		// Get Google OIDC token
+		logs.Info("Service Account Token obtained using Node Identity (VM Service Account)")
+		token, err = handlers.GetGoogleOIDCToken(svc, ctx, googleServiceAccountEmail, jfrogOidcProviderAudience)
+		if err != nil {
+			logs.Exit("ERROR in GetGoogleOIDCToken :"+err.Error(), 1)
+		}
 	}
 
 	// Exchange Google OIDC token with JFrog Artifactory token
@@ -304,7 +313,6 @@ func handleGoogleAuth(svc *service.Service, ctx context.Context, logs *logger.Lo
 	if err != nil {
 		logs.Exit("ERROR in JFrog Credentials provider, error in createArtifactoryToken :"+err.Error(), 1)
 	}
-
 	return rtUsername, rtToken
 }
 
@@ -326,6 +334,5 @@ func generateAndOutputResponse(logs *logger.Logger, request utils.CredentialProv
 	if err != nil {
 		logs.Exit("Error marshaling JSON :"+err.Error(), 1)
 	}
-
 	os.Stdout.Write(jsonBytes)
 }
