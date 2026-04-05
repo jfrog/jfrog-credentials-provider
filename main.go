@@ -21,6 +21,7 @@ import (
 	"jfrog-credential-provider/internal/provider"
 	"log"
 	"os"
+	"strconv"
 	"time"
 )
 
@@ -71,8 +72,13 @@ func main() {
 		return
 
 	default:
-		// Default behavior
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		httpTimeout := 30 * time.Second
+		if v := os.Getenv("http_timeout_seconds"); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n > 0 {
+				httpTimeout = time.Duration(n) * time.Second
+			}
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
 		defer cancel()
 		provider.StartProvider(ctx, Version)
 	}

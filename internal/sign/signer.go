@@ -427,5 +427,9 @@ func SignV4a(method string, url string, service string, awsCreds AwsCredentials)
 	if err != nil {
 		return nil, err
 	}
+	// removing host only from the headers to avoid 403 Forbidden error
+	// It does exist in CanonicalSignature, Artifactory adds this themseleves so we don't need to add it
+	// specifically to the headers in the request.
+	req.Header.Del("Host")
 	return req, nil
 }

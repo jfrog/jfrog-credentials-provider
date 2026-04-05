@@ -30,7 +30,7 @@ for p in "${PLATFORMS[@]}"; do
         final_name+='.exe'
     fi
 
-    env GOOS="$GOOS" GOARCH="$GOARCH" go build -ldflags "-X 'main.Version=$VERSION'" -o $BUILD_DIR/$final_name ../ || errorExit "Building $final_name failed"
+    env GOOS="$GOOS" GOARCH="$GOARCH" CGO_ENABLED=0 go build -ldflags "-X 'main.Version=$VERSION'" -o $BUILD_DIR/$final_name ../ || errorExit "Building $final_name failed"
 done
 
 echo -e "\nDone!\nThe following binaries were created in the bin/ directory:"
