@@ -117,7 +117,7 @@ data:
     },
     {
       "name": "secret_ttl_seconds",
-      "value": {{- if .aws.secret_ttl_seconds }}"{{ .aws.secret_ttl_seconds | toJson }}"{{ else }}"14400"{{ end }}
+      "value": {{- if .aws.secret_ttl_seconds }}{{ .aws.secret_ttl_seconds | toString | quote }}{{ else }}"14400"{{ end }}
     }
     ]
     }
