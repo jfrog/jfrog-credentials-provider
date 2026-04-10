@@ -142,6 +142,8 @@ resource "local_file" "jfrog_provider_azure" {
       value: "${var.artifactory_url}"
     - name: azure_app_client_id
       value: "${var.azure_envs.azure_app_client_id}"
+    - name: azure_cloud_name
+      value: "${var.azure_envs.azure_cloud_name}"
     - name: azure_tenant_id
       value: "${var.azure_envs.azure_tenant_id}"
     - name: azure_app_audience

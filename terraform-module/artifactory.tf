@@ -1,11 +1,15 @@
 locals {
-   oidc_config = var.enable_azure ? {
-    issuer_url = "https://login.microsoftonline.com/${var.azure_envs.azure_tenant_id}/v2.0" 
+  azure_ad_endpoint = var.enable_azure ? lookup({
+    "AzureCloud"        = "https://login.microsoftonline.com"
+    "AzureChinaCloud"   = "https://login.chinacloudapi.cn"
+  }, var.azure_envs.azure_cloud_name, "https://login.microsoftonline.com") : ""
+  oidc_config = var.enable_azure ? {
+    issuer_url = "${local.azure_ad_endpoint}/${var.azure_envs.azure_tenant_id}/v2.0" 
     provider_type = "Azure"
-    token_issuer = "https://login.microsoftonline.com/${var.azure_envs.azure_tenant_id}/v2.0"
+    token_issuer = "${local.azure_ad_endpoint}/${var.azure_envs.azure_tenant_id}/v2.0"
     claims = {
       aud = var.azure_envs.azure_app_client_id
-      iss = "https://login.microsoftonline.com/${var.azure_envs.azure_tenant_id}/v2.0"
+      iss = "${local.azure_ad_endpoint}/${var.azure_envs.azure_tenant_id}/v2.0"
     }
    } : var.enable_aws && var.authentication_method == "cognito_oidc"? {
     issuer_url = "https://cognito-idp.${var.region}.amazonaws.com/${var.aws_cognito_user_pool_id}/"

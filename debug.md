@@ -70,6 +70,7 @@ Example for Azure:
 
 ```bash
 export artifactory_url=YOUR_ARTIFACTORY_URL
+export azure_cloud_name=YOUR_AZURE_CLOUD_NAME
 export azure_app_client_id=YOUR_AZURE_APP_CLIENT_ID
 export azure_tenant_id=YOUR_AZURE_TENANT_ID
 export azure_nodepool_client_id=YOUR_AZURE_NODEPOOL_CLIENT_ID

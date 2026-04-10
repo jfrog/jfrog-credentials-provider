@@ -51,7 +51,13 @@ data:
     elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
         ARCH_SUFFIX="arm64"
     fi
-    export JFROG_CREDENTIAL_PROVIDER_BINARY_URL="${JFROG_CREDENTIAL_PROVIDER_BINARY_URL}-${ARCH_SUFFIX}"
+    if [[ "${JFROG_CREDENTIAL_PROVIDER_BINARY_URL}" == *"?"* ]]; then
+        QUERY_STRING="${JFROG_CREDENTIAL_PROVIDER_BINARY_URL#*\?}"
+        BASE_URL="${JFROG_CREDENTIAL_PROVIDER_BINARY_URL%%\?*}"
+        export JFROG_CREDENTIAL_PROVIDER_BINARY_URL="${BASE_URL}-${ARCH_SUFFIX}?${QUERY_STRING}"
+    else
+        export JFROG_CREDENTIAL_PROVIDER_BINARY_URL="${JFROG_CREDENTIAL_PROVIDER_BINARY_URL}-${ARCH_SUFFIX}"
+    fi
 
     # Pull the jfrog-credential-provider binary
     echo "Downloading the jfrog-credential-provider binary (${JFROG_CREDENTIAL_PROVIDER_BINARY_URL})"

@@ -138,6 +138,8 @@ data:
       value: "{{ .artifactoryUrl }}"
     - name: azure_app_client_id
       value: "{{ .azure.azure_app_client_id }}"
+    - name: azure_cloud_name
+      value: "{{ .azure.azure_cloud_name }}"
     - name: azure_tenant_id
       value: "{{ .azure.azure_tenant_id }}"
     - name: azure_nodepool_client_id

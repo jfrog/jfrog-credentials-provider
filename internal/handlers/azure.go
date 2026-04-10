@@ -27,7 +27,6 @@ import (
 
 const (
 	AZURE_IDENTITY_ENDPOINT = "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2023-11-01&resource=$audience&client_id=$nodepool_client_id"
-	AZURE_OIDC_TOKEN_URL    = "https://login.microsoftonline.com/$tenant/oauth2/v2.0/token"
 	AZURE_GRANT_TYPE        = "client_credentials"
 	AZURE_SCOPE             = "$client_id/.default"
 	AZURE_METADATA_URL      = "http://169.254.169.254/metadata/instance?api-version=2021-02-01"
@@ -57,6 +56,18 @@ type JWTHeader struct {
 	Type      string `json:"typ"`
 	KeyID     string `json:"kid,omitempty"`
 	X5t       string `json:"x5t,omitempty"`
+}
+
+// getAzureADEndpoint returns the Azure Active Directory endpoint based on the cloud name
+func getAzureADEndpoint(cloudName string) string {
+	switch cloudName {
+	case "AzureCloud":
+		return "https://login.microsoftonline.com"
+	case "AzureChinaCloud":
+		return "https://login.partner.microsoftonline.cn"
+	default:
+		return "https://login.microsoftonline.com"
+	}
 }
 
 // GetAzureClusterIdentity retrieves the identity token from the kubelet managed identity
@@ -99,7 +110,7 @@ func GetAzureClusterIdentity(s *service.Service, ctx context.Context, azureAppAu
 
 // GetAzureOIDCToken retrieves an OIDC token from Azure using managed identity
 func GetAzureOIDCToken(s *service.Service, ctx context.Context,
-	tenantId, clientId, azureNodepoolClientId, azureAppAudience string) (string, error) {
+	tenantId, clientId, azureNodepoolClientId, azureAppAudience, cloudName string) (string, error) {
 
 	identityTokenAssertion, err := GetAzureClusterIdentity(s, ctx, azureAppAudience, azureNodepoolClientId)
 	if err != nil {
@@ -107,7 +118,10 @@ func GetAzureOIDCToken(s *service.Service, ctx context.Context,
 		return "", err
 	}
 
-	oidc_url := strings.Replace(AZURE_OIDC_TOKEN_URL, "$tenant", tenantId, 1)
+	// Get Azure AD endpoint based on cloud name
+	azureADEndpoint := getAzureADEndpoint(cloudName)
+	s.Logger.Info(fmt.Sprintf("Using Azure AD endpoint: %s for cloud: %s", azureADEndpoint, cloudName))
+	oidcURL := fmt.Sprintf("%s/%s/oauth2/v2.0/token", azureADEndpoint, tenantId)
 
 	// Create url.Values for form data
 	data := url.Values{}
@@ -119,7 +133,7 @@ func GetAzureOIDCToken(s *service.Service, ctx context.Context,
 	data.Set("subject_token_type", "urn:ietf:params:oauth:token-type:jwt")
 
 	// Get oidc token
-	req, err := http.NewRequestWithContext(ctx, "POST", oidc_url, strings.NewReader(data.Encode()))
+	req, err := http.NewRequestWithContext(ctx, "POST", oidcURL, strings.NewReader(data.Encode()))
 	if err != nil {
 		return "", fmt.Errorf("NewRequestWithContext from azure oidc token failed: %v" + err.Error())
 	}

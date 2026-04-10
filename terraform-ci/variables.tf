@@ -192,6 +192,12 @@ variable "enable_azure" {
 }
 
 # Azure Variables
+variable "azure_cloud_name" {
+  description = "Azure Cloud Name."
+  type        = string
+  default     = "AzureCloud"
+}
+
 variable "azure_subscription_id" {
   description = "Azure subscription ID."
   type        = string

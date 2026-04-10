@@ -129,6 +129,7 @@ enable_azure = true
 create_aks_cluster = true  # or false
 
 # Azure subscription and resource group (must exist)
+azure_cloud_name     = "your-azure-cloud-name"
 azure_subscription_id     = "your-azure-subscription-id"
 azure_resource_group_name = "your-existing-resource-group"
 azure_location           = "East US"
