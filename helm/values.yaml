@@ -67,6 +67,7 @@ additionalResources: |
 providerConfig:
   - name: jfrog-credentials-provider
     artifactoryUrl: your-org.jfrog.io
+    # http_timeout_seconds: 30
     matchImages:
       - "*.jfrog.io"
     defaultCacheDuration: 15m

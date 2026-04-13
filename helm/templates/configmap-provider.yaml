@@ -75,6 +75,12 @@ data:
       "name": "disable_provider_autoupdate",
       "value": "{{ not $.Values.autoUpgrade }}"
     },
+    {{- if .http_timeout_seconds }}
+    {
+      "name": "http_timeout_seconds",
+      "value": "{{ .http_timeout_seconds | toJson }}"
+    },
+    {{- end }}
     {{- if .aws.aws_region }}
     {
       "name": "aws_region",
@@ -111,7 +117,7 @@ data:
     },
     {
       "name": "secret_ttl_seconds",
-      "value": {{- if .aws.secret_ttl_seconds }}{{ .aws.secret_ttl_seconds | toJson }}{{ else }}"14400"{{ end }}
+      "value": {{- if .aws.secret_ttl_seconds }}{{ .aws.secret_ttl_seconds | toString | quote }}{{ else }}"14400"{{ end }}
     }
     ]
     }
@@ -130,6 +136,10 @@ data:
       value: "{{ .gcp.jfrog_oidc_provider_name }}"
     - name: disable_provider_autoupdate
       value: "{{ not $.Values.autoUpgrade }}"
+    {{- if .http_timeout_seconds }}
+    - name: http_timeout_seconds
+      value: "{{ .http_timeout_seconds }}"
+    {{- end }}
     {{- end }}
 
     {{- if eq $cloudProvider "azure" }}
@@ -148,6 +158,10 @@ data:
       value: "{{ .azure.jfrog_oidc_provider_name }}"
     - name: disable_provider_autoupdate
       value: "{{ not $.Values.autoUpgrade }}"
+    {{- if .http_timeout_seconds }}
+    - name: http_timeout_seconds
+      value: "{{ .http_timeout_seconds }}"
+    {{- end }}
     {{- end }}
     {{- end }}
 
