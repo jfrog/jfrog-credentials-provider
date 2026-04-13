@@ -5,6 +5,29 @@
 # The chart will automatically append the architecture suffix (-amd64 or -arm64)
 downloadUrl: "https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/1.0.1/jfrog-credential-provider-linux"
 
+# Offline / AMI-baked binary mode.
+# If set, the curl download is skipped entirely. The value must be the directory path on the node
+# (baked into the AMI or placed by node bootstrap) that contains the provider binaries.
+# Expected filenames inside that directory:
+#   jfrog-credential-provider-linux-amd64
+#   jfrog-credential-provider-linux-arm64
+# Example: localBinaryHostPath: "/opt/jfrog-cp"
+localBinaryHostPath: ""
+
+# Authentication for downloading the provider binary from a private Artifactory instance.
+# Leave all fields empty for anonymous/public download (default behaviour).
+binaryDownload:
+  auth:
+    # Name of an existing Kubernetes Secret containing download credentials.
+    # The Secret must have fixed keys: username, password, accessToken.
+    # When set, the inline username/password/accessToken fields below are ignored.
+    existingSecret: ""
+    # Inline credentials — the chart creates a Secret automatically from these values.
+    # Use either username + password  OR  accessToken alone, not both.
+    username: ""
+    password: ""
+    accessToken: ""
+
 # Affinity rules for pod scheduling
 affinity: {}
 

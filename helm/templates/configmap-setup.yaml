@@ -53,44 +53,59 @@ data:
     fi
     export JFROG_CREDENTIAL_PROVIDER_BINARY_URL="${JFROG_CREDENTIAL_PROVIDER_BINARY_URL}-${ARCH_SUFFIX}"
 
-    # Pull the jfrog-credential-provider binary
-    echo "Downloading the jfrog-credential-provider binary (${JFROG_CREDENTIAL_PROVIDER_BINARY_URL})"
-    curl -L -f -o ${KUBELET_MOUNT_PATH}${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ .name }} "${JFROG_CREDENTIAL_PROVIDER_BINARY_URL}"
-
-    if [[ $? -ne 0 ]]; then
-        echo "Downloading (${JFROG_CREDENTIAL_PROVIDER_BINARY_URL}) failed"
-
-        # Wait and exit to allow pod to restart (ugly yet simple solution for when the cluster DNS service is not ready yet)
-        log "Sleeping for 10 seconds before exiting"
-        sleep 10
-        exit 1
-    else
-        echo "Successfully downloaded the jfrog-credential-provider binary from Artifactory"
-        # Make the binary executable
-        echo "Making the jfrog-credential-provider binary executable"
-        chmod +x ${KUBELET_MOUNT_PATH}${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ .name }}
-
-        {{- if or (eq $cloudProvider "gcp") (eq $cloudProvider "azure") }}
-        echo "Copying the /etc/${JFROG_CONFIG_FILE}.yaml configuration file to ${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}/${JFROG_CONFIG_FILE}.yaml"
-        cp -f "/etc/${JFROG_CONFIG_FILE}.yaml" "${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}/${JFROG_CONFIG_FILE}.yaml"
-        sleep 2 # Wait a bit to ensure the file is copied before proceeding
-        nsenter -t 1 -m -p -- ${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ .name }} add-provider-config --yaml --provider-home "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}" --provider-config "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_FILE_NAME}"
-        {{- else if eq $cloudProvider "aws" }}
-        echo "Copying the /etc/${JFROG_CONFIG_FILE}.json configuration file to ${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}/${JFROG_CONFIG_FILE}.json"
-        cp -f "/etc/${JFROG_CONFIG_FILE}.json" "${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}/${JFROG_CONFIG_FILE}.json"
-        sleep 2 # Wait a bit to ensure the file is copied before proceeding
-        nsenter -t 1 -m -p -- ${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ .name }} add-provider-config --provider-home "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}" --provider-config "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_FILE_NAME}"
-        {{- end }}
-
-
+    # Acquire the jfrog-credential-provider binary (AMI path, download with auth, or anonymous download)
+    if [ -n "${LOCAL_BINARY_HOST_PATH}" ]; then
+        log "Using AMI-baked binary: /local-binary/{{ .name }}-${ARCH_SUFFIX}"
+        cp /local-binary/{{ .name }}-${ARCH_SUFFIX} ${KUBELET_MOUNT_PATH}${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ .name }}
         if [[ $? -ne 0 ]]; then
-            echo "Updating the kubelet configuration failed"
+            log "Failed to copy binary from /local-binary/{{ .name }}-${ARCH_SUFFIX}"
+            log "Sleeping for 10 seconds before exiting"
+            sleep 10
             exit 1
         fi
+    else
+        # Build curl authentication arguments
+        CURL_AUTH_ARGS=()
+        if [ -n "${DOWNLOAD_ACCESS_TOKEN}" ]; then
+            CURL_AUTH_ARGS=(-H "Authorization: Bearer ${DOWNLOAD_ACCESS_TOKEN}")
+        elif [ -n "${DOWNLOAD_USERNAME}" ]; then
+            CURL_AUTH_ARGS=(-u "${DOWNLOAD_USERNAME}:${DOWNLOAD_PASSWORD}")
+        fi
 
-        log "The final ${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH}:"
-        cat ${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH}
+        log "Downloading the jfrog-credential-provider binary (${JFROG_CREDENTIAL_PROVIDER_BINARY_URL})"
+        curl -L -f "${CURL_AUTH_ARGS[@]}" -o ${KUBELET_MOUNT_PATH}${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ .name }} "${JFROG_CREDENTIAL_PROVIDER_BINARY_URL}"
+
+        if [[ $? -ne 0 ]]; then
+            log "Downloading (${JFROG_CREDENTIAL_PROVIDER_BINARY_URL}) failed"
+            log "Sleeping for 10 seconds before exiting"
+            sleep 10
+            exit 1
+        fi
     fi
+
+    log "Successfully acquired the jfrog-credential-provider binary"
+    log "Making the jfrog-credential-provider binary executable"
+    chmod +x ${KUBELET_MOUNT_PATH}${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ .name }}
+
+    {{- if or (eq $cloudProvider "gcp") (eq $cloudProvider "azure") }}
+    echo "Copying the /etc/${JFROG_CONFIG_FILE}.yaml configuration file to ${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}/${JFROG_CONFIG_FILE}.yaml"
+    cp -f "/etc/${JFROG_CONFIG_FILE}.yaml" "${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}/${JFROG_CONFIG_FILE}.yaml"
+    sleep 2 # Wait a bit to ensure the file is copied before proceeding
+    nsenter -t 1 -m -p -- ${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ .name }} add-provider-config --yaml --provider-home "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}" --provider-config "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_FILE_NAME}"
+    {{- else if eq $cloudProvider "aws" }}
+    echo "Copying the /etc/${JFROG_CONFIG_FILE}.json configuration file to ${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}/${JFROG_CONFIG_FILE}.json"
+    cp -f "/etc/${JFROG_CONFIG_FILE}.json" "${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}/${JFROG_CONFIG_FILE}.json"
+    sleep 2 # Wait a bit to ensure the file is copied before proceeding
+    nsenter -t 1 -m -p -- ${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ .name }} add-provider-config --provider-home "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}" --provider-config "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_FILE_NAME}"
+    {{- end }}
+
+    if [[ $? -ne 0 ]]; then
+        echo "Updating the kubelet configuration failed"
+        exit 1
+    fi
+
+    log "The final ${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH}:"
+    cat ${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH}
 
     log "Done updating the kubelet config"
 
