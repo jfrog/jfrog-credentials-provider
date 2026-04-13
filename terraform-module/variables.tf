@@ -257,8 +257,6 @@ variable "azure_envs" {
   type = object({
     # Azure registered application client id
     azure_app_client_id = string
-    # Azure Cloud Name
-    azure_cloud_name = string
     # Azure Tenant ID
     azure_tenant_id = string
     # Azure App Audience

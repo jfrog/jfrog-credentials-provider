@@ -24,8 +24,6 @@ resource "azuread_service_principal" "jfrog_credentials_provider_ad_sp" {
 
 # Local values to reference the correct application and service principal
 locals {
-  azure_cloud_name = var.enable_azure ? (var.azure_cloud_name != null ? var.azure_cloud_name : "AzureCloud") : null
-
   azure_app_id = var.enable_azure ? (
     var.existing_azure_app_client_id != null ? 
     data.azuread_application.existing_jfrog_credentials_provider_ad_app[0].id : 
@@ -37,11 +35,6 @@ locals {
     var.existing_azure_app_client_id : 
     azuread_application_registration.jfrog_credentials_provider_ad_app[0].client_id
   ) : null
-
-  azure_ad_endpoint = var.enable_azure ? lookup({
-    "AzureCloud"        = "https://login.microsoftonline.com"
-    "AzureChinaCloud"   = "https://login.chinacloudapi.cn"
-  }, local.azure_cloud_name, "https://login.microsoftonline.com") : ""
 }
 
 resource "azuread_application_federated_identity_credential" "federated_identity_credential" {
@@ -50,7 +43,7 @@ resource "azuread_application_federated_identity_credential" "federated_identity
   display_name   = "${var.aks_cluster_name}-federated-identity"
   description    = "Deployments for jfrog-credentials-provider"
   audiences      = ["api://AzureADTokenExchange"]
-  issuer         = "${local.azure_ad_endpoint}/${data.azuread_client_config.current[0].tenant_id}/v2.0"
+  issuer         = "https://login.microsoftonline.com/${data.azuread_client_config.current[0].tenant_id}/v2.0"
   subject        = data.azurerm_kubernetes_cluster.k8s[0].kubelet_identity[0].object_id
 
   depends_on = [ azurerm_kubernetes_cluster.k8s, local.azure_app_id, data.azurerm_kubernetes_cluster.k8s[0] ]

@@ -50,7 +50,6 @@ artifactory_user = "azure-aks-user"
 kubeconfig_path = "azure_cluster_kubeconfig"
 azure_envs = {
   azure_app_client_id      = "your-azure-app-client-id"
-  azure_cloud_name         = "your-azure-cloud-name"
   azure_tenant_id          = "your-azure-tenant-id"
   azure_app_audience       = "api://AzureADTokenExchange"
   azure_nodepool_client_id = "your-azure-nodepool-client-id"
@@ -223,7 +222,6 @@ enable_azure = true
 jfrog_oidc_provider_name = "jfrog-azure-oidc-provider"
 azure_envs = {
   azure_app_client_id      = "your-azure-app-client-id"
-  azure_cloud_name         = "your-azure-cloud-name"
   azure_tenant_id          = "your-azure-tenant-id"
   azure_app_audience       = "api://AzureADTokenExchange"
   azure_nodepool_client_id = "your-azure-nodepool-client-id"
@@ -290,7 +288,6 @@ module "jfrog_credential_provider" {
   
   azure_envs = {
     azure_app_client_id      = "your-azure-app-client-id"
-    azure_cloud_name         = "your-azure-cloud-name"
     azure_tenant_id          = "your-azure-tenant-id"
     azure_app_audience       = "api://AzureADTokenExchange"
     azure_nodepool_client_id = "your-azure-nodepool-client-id"
@@ -419,10 +416,10 @@ If you'd want to avoid reading all of this and just want to go ahead and try it 
       -H "Authorization: Bearer <TOKEN>" \
       -d '{
         "name": "<PROVIDER_NAME>",
-        "issuer_url": "https://<AD_ENDPOINT>/<TENANT_ID>/v2.0",
+        "issuer_url": "https://login.microsoftonline.com/<TENANT_ID>/v2.0",
         "description": "OIDC with Azure",
         "provider_type": "Azure",
-        "token_issuer": "https://<AD_ENDPOINT>/<TENANT_ID>/v2.0",
+        "token_issuer": "https://login.microsoftonline.com/<TENANT_ID>/v2.0",
         "use_default_proxy": false
       }'
 
@@ -434,7 +431,7 @@ If you'd want to avoid reading all of this and just want to go ahead and try it 
         "description": "Azure OIDC identity mapping",
         "claims": {
           "aud": "<AZURE_APP_CLIENT_ID>",
-          "iss": "https://<AD_ENDPOINT>/<TENANT_ID>/v2.0"
+          "iss": "https://login.microsoftonline.com/<TENANT_ID>/v2.0"
         },
         "token_spec": {
           "username": "<ARTIFACTORY_USER>",

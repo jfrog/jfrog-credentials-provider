@@ -28,10 +28,6 @@ data "azuread_client_config" "current" {
   count = var.enable_azure ? 1 : 0
 }
 
-data "azurerm_client_config" "current" {
-  count = var.enable_azure ? 1 : 0
-}
-
 # Data source to get managed identity created by AKS for the agent pool
 # data "azurerm_user_assigned_identity" "agentpool_identity" {
 #   count = var.enable_azure ? 1 : 0

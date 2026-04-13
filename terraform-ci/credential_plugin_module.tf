@@ -117,7 +117,6 @@ module create_azure_daemonset_with_plugin_enabled {
     # Azure authentication configuration
     azure_envs = var.enable_azure ? {
         azure_app_client_id = local.azure_client_id
-        azure_cloud_name = local.azure_cloud_name
         azure_tenant_id = data.azuread_client_config.current[0].tenant_id
         azure_app_audience = "api://AzureADTokenExchange"
         azure_nodepool_client_id = data.azurerm_kubernetes_cluster.k8s[0].kubelet_identity[0].client_id
