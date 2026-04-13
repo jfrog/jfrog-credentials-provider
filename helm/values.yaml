@@ -104,7 +104,7 @@ providerConfig:
     azure:
       enabled: false
       azure_app_client_id: ""
-      azure_cloud_name: ""
+      # azure_cloud_name: "AzureCloud"
       azure_tenant_id: ""
       azure_app_audience: ""
       jfrog_oidc_provider_name: ""

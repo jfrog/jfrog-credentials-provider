@@ -85,7 +85,7 @@ There are **two authentication methods** available for the credential provider:
 
 The setup process consists of the following steps:
 
-1. **Identify Azure Cloud Name** - Determine your Azure cloud environment
+1. **Identify Azure Cloud Name** - Determine your Azure cloud environment (optional for `AzureCloud`, required for sovereign clouds)
 2. **Azure AD App Registration** - Create an enterprise application in Azure AD
 3. **Federated Identity Credentials** - Configure AKS nodepool access to the Azure App
 4. **JFrog Artifactory OIDC Configuration** - Choose one of:
@@ -98,6 +98,8 @@ The setup process consists of the following steps:
 ## Step 1: 🌍 Identify Azure Cloud Name and Endpoints
 
 Before configuring the credential provider, you need to identify which Azure cloud environment you're using and set the appropriate endpoints. Different Azure clouds have different endpoints for Microsoft Graph and Active Directory authentication.
+
+> **ℹ️ Note:** If you are using the default Azure public cloud (`AzureCloud`), `azure_cloud_name` is optional and defaults to `AzureCloud`. You can skip setting it in your Helm values. For sovereign clouds like `AzureChinaCloud`, you must set it explicitly.
 
 ### 🔍 Determine Your Azure Cloud and Endpoints
 
@@ -613,7 +615,7 @@ echo "jfrog_oidc_provider_name: $OIDC_PROVIDER_NAME"
 
 | Configuration Value | Description | Example |
 |---------------------|-------------|---------|
-| `azure_cloud_name` | Your Azure Cloud Name | `AzureCloud` `AzureChinaCloud` |
+| `azure_cloud_name` | Your Azure Cloud Name (optional, defaults to `AzureCloud`) | `AzureCloud` `AzureChinaCloud` |
 | `azure_tenant_id` | Your Azure AD tenant ID | `12345678-1234-1234-1234-123456789012` |
 | `azure_app_client_id` | The Azure AD application client ID | `87654321-4321-4321-4321-210987654321` |
 | `azure_nodepool_client_id` | Client ID of the user-assigned managed identity attached to the AKS nodepool (also added to the app registration's federated credential) | `11111111-2222-3333-4444-555555555555` |
@@ -636,7 +638,7 @@ providerConfig:
       enabled: false  # Set to false for nodepool identity
     azure:
       enabled: true
-      azure_cloud_name: "<cloud-name>"
+      azure_cloud_name: "<cloud-name>"  # Optional, defaults to AzureCloud
       azure_tenant_id: "<tenant-id>"
       azure_app_client_id: "<app-client-id>"
       azure_nodepool_client_id: "<nodepool-client-id>"
@@ -663,7 +665,7 @@ providerConfig:
       serviceAccountTokenAudience: "<app-audience>"
     azure:
       enabled: true
-      azure_cloud_name: "<cloud-name>"
+      azure_cloud_name: "<cloud-name>"  # Optional, defaults to AzureCloud
       azure_app_client_id: "<app-client-id>"
       azure_app_audience: "<app-audience>"
       jfrog_oidc_provider_name: "<oidc-provider-name>"
