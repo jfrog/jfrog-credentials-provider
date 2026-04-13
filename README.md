@@ -131,6 +131,59 @@ Choose your cloud provider to get started:
 
 </div>
 
+## 📥 Provider Binary Source
+
+By default, the init container downloads the `jfrog-credential-provider` binary at deploy time from the public JFrog releases URL (`downloadUrl`) with **anonymous access**. The chart automatically appends the node's architecture suffix (`-amd64` / `-arm64`).
+
+You can change where and how the binary is acquired using two cloud-agnostic settings.
+
+### 🌐 Option A: Download from a custom URL (default mechanism)
+
+Override `downloadUrl` to pull the binary from your own location (for example, a binary mirrored into your own Artifactory generic repository):
+
+```yaml
+downloadUrl: "https://your-org.jfrog.io/artifactory/your-repo/jfrog-credential-provider/1.2.0/jfrog-credential-provider-linux"
+```
+
+> **⚠️ Best practice — hosting the binary yourself:**
+> If you change the default `downloadUrl` to serve the binary from your own Artifactory, it is **strongly preferred to host it in a dedicated repository with anonymous (unauthenticated) read access enabled**. The binary is a public, non-sensitive artifact, and keeping it on an anonymous repo avoids distributing download credentials to every node.
+>
+> If your organization has a **hard requirement** that the repository must be private (no anonymous access), then secure it with download credentials (see Option C) and follow the principle of least privilege:
+> - Create a **dedicated, least-privileged user** (or token) that has **read-only access to that one repository only** — never an admin or broadly-scoped account.
+> - Do not reuse existing credentials that have access to other repositories or platform features.
+> - Rotate the credential periodically.
+
+### 📦 Option B: Use a pre-baked / air-gapped binary (`internalBinaryHostPath`)
+
+For air-gapped clusters or AMI-baked nodes, set `internalBinaryHostPath` to the absolute path of the binary already present on the node. When set, the download step is **skipped entirely**, so no `downloadUrl` and no credentials are needed.
+
+```yaml
+# Skips the download; copies the binary from this host path instead.
+# The binary must match the node architecture (no automatic -amd64/-arm64 suffixing here).
+internalBinaryHostPath: "/opt/jfrog-cp/jfrog-credential-provider-linux-amd64"
+```
+
+> **💡 Tip:** This is the most secure and most reliable option for locked-down/air-gapped environments since nothing is fetched over the network at deploy time.
+
+### 🔐 Option C: Authenticated download from a private repository (`binaryDownload.auth`)
+
+If the binary must be downloaded from a **private** Artifactory repository, supply download credentials via `binaryDownload.auth`. Use **either** an existing Secret, **or** inline credentials (which the chart turns into a Secret for you). Use `username` + `password` **or** `accessToken` alone — not both.
+
+```yaml
+binaryDownload:
+  auth:
+    # Reference a pre-created Secret (keys: username, password, accessToken)
+    existingSecret: "jfrog-binary-download-creds"
+
+    # --- OR --- provide inline credentials (chart creates the Secret)
+    # accessToken: "<least-privileged-token>"
+    # username: "jfrog-cp-binary-reader"
+    # password: "<password>"
+```
+
+> **🛡️ Security reminder:** As noted above, prefer an **anonymous dedicated repo** over authenticated downloads. Only use `binaryDownload.auth` when a private repo is a hard requirement, and always back it with a **least-privileged, repository-scoped read-only** user or token. Prefer a scoped `accessToken` over a username/password, and prefer `existingSecret` (managed by your secrets tooling) over inline values.
+
+See [`helm/values.yaml`](./helm/values.yaml) for the full field-level reference.
 
 ## 📋 Logging and Debugging
 

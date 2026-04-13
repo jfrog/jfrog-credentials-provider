@@ -2,6 +2,10 @@
 
 All notable changes to this Helm chart will be documented in this file.
 
+## [1.2.1] - 11th June, 2026
+* Added `internalBinaryHostPath` to support air-gapped / AMI-baked binaries by skipping the download
+* Added `binaryDownload.auth` to support authenticated binary downloads from a private Artifactory repository
+
 ## [1.2.0] - 5th June, 2026
 * Added a fix to honor proxy env vars for provider HTTP clients
 * Add assume_external_role auth method for cross-account IAM role assumption
