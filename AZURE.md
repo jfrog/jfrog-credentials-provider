@@ -108,7 +108,7 @@ Azure operates in multiple sovereign clouds, each with different service endpoin
 | Cloud Name | Microsoft Graph (`GRAPH_ENDPOINT`) | Active Directory (`AD_ENDPOINT`) |
 |------------|----------------|------------------|
 | `AzureCloud` | `https://graph.microsoft.com` | `https://login.microsoftonline.com` |
-| `AzureChinaCloud` | `https://microsoftgraph.chinacloudapi.cn` | `https://login.chinacloudapi.cn` |
+| `AzureChinaCloud` | `https://microsoftgraph.chinacloudapi.cn` | `https://login.partner.microsoftonline.cn` |
 
 Set the variables based on your cloud environment:
 
