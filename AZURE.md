@@ -77,24 +77,62 @@ helm version
 
 There are **two authentication methods** available for the credential provider:
 
-- **Option A: Nodepool Managed Identity** (Steps 1 → 2 → 3A → 4) — Uses the AKS nodepool's user-assigned managed identity to authenticate via Azure IMDS.
+- **Option A: Nodepool Managed Identity** (Steps 1 → 2 → 3 → 4A → 5) — Uses the AKS nodepool's user-assigned managed identity to authenticate via Azure IMDS.
   > **Choose this when:** You want a straightforward setup, all nodes in the pool can share the same identity, and you don't need per-workload credential isolation.
 
-- **Option B: Workload Identity** (Steps 1 → 2 → 3B → 4) — Uses Kubernetes projected service account tokens. Provides better security isolation as each service account can have its own identity.
+- **Option B: Workload Identity** (Steps 1 → 2 → 3 → 4B → 5) — Uses Kubernetes projected service account tokens. Provides better security isolation as each service account can have its own identity.
   > **Choose this when:** You need fine-grained, per-service-account access control, want to follow the zero-trust principle, or your organization requires workload-level identity isolation.
 
 The setup process consists of the following steps:
 
-1. **Azure AD App Registration** - Create an enterprise application in Azure AD
-2. **Federated Identity Credentials** - Configure AKS nodepool access to the Azure App
-3. **JFrog Artifactory OIDC Configuration** - Choose one of:
-   - **Step 3A:** Configure using Nodepool Managed Identity
-   - **Step 3B:** Configure using Workload Identity (Projected Service Account Tokens)
-4. **Deploy Credentials Provider** - Deploy the credential provider using Helm
+1. **Identify Azure Cloud Name** - Determine your Azure cloud environment (optional for `AzureCloud`, required for sovereign clouds)
+2. **Azure AD App Registration** - Create an enterprise application in Azure AD
+3. **Federated Identity Credentials** - Configure AKS nodepool access to the Azure App
+4. **JFrog Artifactory OIDC Configuration** - Choose one of:
+   - **Step 4A:** Configure using Nodepool Managed Identity
+   - **Step 4B:** Configure using Workload Identity (Projected Service Account Tokens)
+5. **Deploy Credentials Provider** - Deploy the credential provider using Helm
 
 ---
 
-## Step 1: 🔐 Azure AD App Registration
+## Step 1: 🌍 Identify Azure Cloud Name and Endpoints
+
+Before configuring the credential provider, you need to identify which Azure cloud environment you're using and set the appropriate endpoints. Different Azure clouds have different endpoints for Microsoft Graph and Active Directory authentication.
+
+> **ℹ️ Note:** If you are using the default Azure public cloud (`AzureCloud`), `azure_cloud_name` is optional and defaults to `AzureCloud`. You can skip setting it in your Helm values. For sovereign clouds like `AzureChinaCloud`, you must set it explicitly.
+
+### 🔍 Determine Your Azure Cloud and Endpoints
+
+Azure operates in multiple sovereign clouds, each with different service endpoints. Identify your cloud environment from the table below and set the corresponding variables:
+
+| Cloud Name | Microsoft Graph (`GRAPH_ENDPOINT`) | Active Directory (`AD_ENDPOINT`) |
+|------------|----------------|------------------|
+| `AzureCloud` | `https://graph.microsoft.com` | `https://login.microsoftonline.com` |
+| `AzureChinaCloud` | `https://microsoftgraph.chinacloudapi.cn` | `https://login.partner.microsoftonline.cn` |
+
+Set the variables based on your cloud environment:
+
+```bash
+# Get your Azure cloud name from the active cloud eg. AzureCloud, AzureChinaCloud
+CLOUD_NAME=$(az cloud show --query name -o tsv)
+
+# Set the endpoints from the table above based on your CLOUD_NAME
+GRAPH_ENDPOINT="https://graph.microsoft.com"
+AD_ENDPOINT="https://login.microsoftonline.com"
+
+echo "Azure Cloud Name: $CLOUD_NAME"
+echo "Microsoft Graph Endpoint: $GRAPH_ENDPOINT"
+echo "Active Directory Endpoint: $AD_ENDPOINT"
+```
+
+> **💾 Important:** Save these values for later use:
+> - `CLOUD_NAME` (also called `azure_cloud_name`)
+> - `GRAPH_ENDPOINT` (used in subsequent steps for Azure AD API calls)
+> - `AD_ENDPOINT` (used as the issuer URL for OIDC configuration)
+
+---
+
+## Step 2: 🔐 Azure AD App Registration
 
 The Azure AD App Registration serves as the identity that authenticates with JFrog Artifactory via OIDC.
 
@@ -158,7 +196,7 @@ Setting **Assignment Required** to **Yes** ensures that only explicitly assigned
 SPN_OBJECT_ID=$(az ad sp list --filter "appId eq '$APP_CLIENT_ID'" --query "[0].id" -o tsv)
 
 az rest --method PATCH \
-  --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$SPN_OBJECT_ID" \
+  --uri "$GRAPH_ENDPOINT/v1.0/servicePrincipals/$SPN_OBJECT_ID" \
   --headers "Content-Type=application/json" \
   --body '{"appRoleAssignmentRequired": true}'
 ```
@@ -179,7 +217,7 @@ Or via CLI:
 OBJECT_ID=$(az ad app show --id "$APP_CLIENT_ID" --query "id" -o tsv)
 
 az rest --method PATCH \
-  --uri "https://graph.microsoft.com/v1.0/applications/$OBJECT_ID" \
+  --uri "$GRAPH_ENDPOINT/v1.0/applications/$OBJECT_ID" \
   --headers "Content-Type=application/json" \
   --body '{
     "appRoles": [{
@@ -204,7 +242,7 @@ ROLE_ID=$(az ad sp show --id "$SPN_OBJECT_ID" --query "appRoles[?value=='Task.Re
 
 ```bash
 az rest --method POST \
-  --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$SPN_OBJECT_ID/appRoleAssignments" \
+  --uri "$GRAPH_ENDPOINT/v1.0/servicePrincipals/$SPN_OBJECT_ID/appRoleAssignments" \
   --headers "Content-Type=application/json" \
   --body "{
     \"principalId\": \"$SPN_OBJECT_ID\",
@@ -217,7 +255,7 @@ After this, the credential provider will continue to work via the federated cred
 
 ### ⚙️ Configure Access Token Version
 
-The credential provider uses `https://login.microsoftonline.com` as the issuer URL (instead of the older `https://sts.windows.net/`). Azure requires you to set `requestedAccessTokenVersion` to `2` for this to work.
+The credential provider uses the Active Directory endpoint (e.g., `$AD_ENDPOINT`) as the issuer URL. Azure requires you to set `requestedAccessTokenVersion` to `2` for this to work.
 
 ```bash
 # Get the object ID of the app created above
@@ -226,7 +264,7 @@ OBJECT_ID=$(az ad app show --id "$APP_CLIENT_ID" --query "id" -o tsv)
 # Update the access token version
 az rest --method PATCH \
   --headers "Content-Type=application/json" \
-  --uri "https://graph.microsoft.com/v1.0/applications/$OBJECT_ID" \
+  --uri "$GRAPH_ENDPOINT/v1.0/applications/$OBJECT_ID" \
   --body '{"api":{"requestedAccessTokenVersion": 2}}'
 ```
 
@@ -238,9 +276,12 @@ az rest --method PATCH \
 4. Set `"requestedAccessTokenVersion": 2` in the JSON
 5. Click **Save**
 
+> **💾 Important:** For AzureChinaCloud, the key will be:
+> `"accessTokenAcceptedVersion": 2`
+
 ---
 
-## Step 2: 🔗 Federated Identity Credentials
+## Step 3: 🔗 Federated Identity Credentials
 
 Federated credentials allow the AKS nodepool's managed identity to exchange tokens with the Azure AD App Registration. This establishes trust between your AKS cluster and Azure AD.
 
@@ -311,7 +352,7 @@ echo "Nodepool Client ID: $NODEPOOL_CLIENT_ID"
 # Use the kubelet identity object ID (or nodepool if different)
 FEDERATED_CREDENTIAL_NAME="aks-nodepool-federated-credential"
 AUDIENCE="api://AzureADTokenExchange"
-ISSUER="https://login.microsoftonline.com/$TENANT_ID/v2.0"
+ISSUER="$AD_ENDPOINT/$TENANT_ID/v2.0"
 
 # Create the federated credential
 az ad app federated-credential create \
@@ -333,13 +374,13 @@ az ad app federated-credential list --id "$APP_CLIENT_ID"
 ```
 
 You should see your federated credential with:
-- `issuer`: `https://login.microsoftonline.com/<TENANT_ID>/v2.0`
+- `issuer`: `<AD_ENDPOINT>/<TENANT_ID>/v2.0` (e.g., `https://login.microsoftonline.com/<TENANT_ID>/v2.0` for AzureCloud)
 - `subject`: Your kubelet/nodepool identity object ID
 - `audiences`: `["api://AzureADTokenExchange"]`
 
 ---
 
-## Step 3A: 🐸 JFrog Artifactory OIDC Configuration
+## Step 4A: 🐸 JFrog Artifactory OIDC Configuration
 
 Configure JFrog Artifactory to accept OIDC tokens from Azure. This involves creating an OIDC provider and an identity mapping in Artifactory.
 
@@ -365,10 +406,10 @@ curl -X POST "https://$ARTIFACTORY_URL/access/api/v1/oidc" \
   -H "Authorization: Bearer $ARTIFACTORY_ADMIN_TOKEN" \
   -d "{
     \"name\": \"$OIDC_PROVIDER_NAME\",
-    \"issuer_url\": \"https://login.microsoftonline.com/$TENANT_ID/v2.0\",
+    \"issuer_url\": \"$AD_ENDPOINT/$TENANT_ID/v2.0\",
     \"description\": \"OIDC provider for Azure AKS\",
     \"provider_type\": \"Azure\",
-    \"token_issuer\": \"https://login.microsoftonline.com/$TENANT_ID/v2.0\",
+    \"token_issuer\": \"$AD_ENDPOINT/$TENANT_ID/v2.0\",
     \"azure_app_id\": \"$APP_CLIENT_ID\",
     \"audience\": \"$APP_CLIENT_ID\",
     \"use_default_proxy\": false
@@ -392,7 +433,7 @@ curl -X POST "https://$ARTIFACTORY_URL/access/api/v1/oidc/$OIDC_PROVIDER_NAME/id
     \"description\": \"Azure OIDC identity mapping\",
     \"claims\": {
       \"aud\": \"$APP_CLIENT_ID\",
-      \"iss\": \"https://login.microsoftonline.com/$TENANT_ID/v2.0\"
+      \"iss\": \"$AD_ENDPOINT/$TENANT_ID/v2.0\"
     },
     \"token_spec\": {
       \"username\": \"$ARTIFACTORY_USER\",
@@ -408,7 +449,7 @@ curl -X POST "https://$ARTIFACTORY_URL/access/api/v1/oidc/$OIDC_PROVIDER_NAME/id
 <summary><strong>📝 Configuration Notes</strong></summary>
 
 - The `claims.aud` must match your `azure_app_client_id`
-- The `claims.iss` must match the Azure AD issuer URL: `https://login.microsoftonline.com/$TENANT_ID/v2.0`
+- The `claims.iss` must match the Azure AD issuer URL: `$AD_ENDPOINT/$TENANT_ID/v2.0` (e.g., `https://login.microsoftonline.com/$TENANT_ID/v2.0` for AzureCloud)
 - The `token_spec.username` must be an existing Artifactory user
 - Ensure the user has permissions to pull images from your repositories
 
@@ -430,7 +471,7 @@ curl -X GET "https://$ARTIFACTORY_URL/access/api/v1/oidc/$OIDC_PROVIDER_NAME" \
 
 ---
 
-## Step 3B: Using Projected Service Account Tokens (Workload Identity)
+## Step 4B: Using Projected Service Account Tokens (Workload Identity)
 
 Instead of using the Nodepool's Managed Identity, you can use **Kubernetes Workload Identity**. This allows the Credential Provider to use a specific Kubernetes Service Account to authenticate with Artifactory. This method provides better security isolation as each service account can have its own Azure AD app registration.
 
@@ -444,7 +485,7 @@ Instead of using the Nodepool's Managed Identity, you can use **Kubernetes Workl
 
 4. The kubelet uses the registry token to authenticate and pull the container image
 
-### Step 3B.1: ✅ Enable OIDC Issuer on AKS
+### Step 4B.1: ✅ Enable OIDC Issuer on AKS
 
 First, ensure your cluster has the OIDC issuer enabled to support Workload Identity:
 
@@ -471,7 +512,7 @@ echo "Service Account Issuer: $SERVICE_ACCOUNT_ISSUER"
 
 > **💾 Important:** Save the `SERVICE_ACCOUNT_ISSUER` URL - you'll need it for Artifactory OIDC configuration.
 
-### Step 3B.2: 👤 Configure the Kubernetes Service Account
+### Step 4B.2: 👤 Configure the Kubernetes Service Account
 
 Create a Service Account that the Credential Provider will use to project the tokens:
 
@@ -496,7 +537,7 @@ kubectl annotate serviceaccount "$SERVICE_ACCOUNT_NAME" \
 
 > **ℹ️ Note:** The `JFrogExchange="true"` annotation tells the credential provider to use the projected service account token instead of the nodepool's managed identity.
 
-### Step 3B.3: 🐸 Update JFrog Artifactory OIDC Configuration
+### Step 4B.3: 🐸 Update JFrog Artifactory OIDC Configuration
 
 You must point Artifactory to your AKS Cluster's OIDC Issuer instead of the global Azure Login URL for this flow:
 
@@ -547,7 +588,7 @@ curl -X POST "https://$ARTIFACTORY_URL/access/api/v1/oidc/aks-workload-identity/
 
 ---
 
-## Step 4: 🚀 Deploy Credentials Provider
+## Step 5: 🚀 Deploy Credentials Provider
 
 Deploy the credential provider using Helm. For manual deployment with Kubernetes manifests, refer to the [Kubernetes Kubelet Credential Provider documentation](https://kubernetes.io/docs/tasks/administer-cluster/kubelet-credential-provider/).
 
@@ -564,6 +605,7 @@ You can use the following commands to print the values you need:
 
 ```bash
 echo "artifactory_url: $ARTIFACTORY_URL"
+echo "azure_cloud_name: $CLOUD_NAME"
 echo "azure_tenant_id: $TENANT_ID"
 echo "azure_app_client_id: $APP_CLIENT_ID"
 echo "azure_nodepool_client_id: $NODEPOOL_CLIENT_ID"
@@ -573,6 +615,7 @@ echo "jfrog_oidc_provider_name: $OIDC_PROVIDER_NAME"
 
 | Configuration Value | Description | Example |
 |---------------------|-------------|---------|
+| `azure_cloud_name` | Your Azure Cloud Name (optional, defaults to `AzureCloud`) | `AzureCloud` `AzureChinaCloud` |
 | `azure_tenant_id` | Your Azure AD tenant ID | `12345678-1234-1234-1234-123456789012` |
 | `azure_app_client_id` | The Azure AD application client ID | `87654321-4321-4321-4321-210987654321` |
 | `azure_nodepool_client_id` | Client ID of the user-assigned managed identity attached to the AKS nodepool (also added to the app registration's federated credential) | `11111111-2222-3333-4444-555555555555` |
@@ -582,7 +625,7 @@ echo "jfrog_oidc_provider_name: $OIDC_PROVIDER_NAME"
 
 #### Configuration for Traditional Nodepool Identity
 
-Use this configuration if you're using the **nodepool's managed identity** (Steps 1-3A):
+Use this configuration if you're using the **nodepool's managed identity** (Steps 2-4A):
 
 ```yaml
 providerConfig:
@@ -595,6 +638,7 @@ providerConfig:
       enabled: false  # Set to false for nodepool identity
     azure:
       enabled: true
+      azure_cloud_name: "<cloud-name>"  # Optional, defaults to AzureCloud
       azure_tenant_id: "<tenant-id>"
       azure_app_client_id: "<app-client-id>"
       azure_nodepool_client_id: "<nodepool-client-id>"
@@ -607,7 +651,7 @@ rbac:
 
 #### Configuration for Workload Identity (Projected Service Account Tokens)
 
-Use this configuration if you're using **Kubernetes Workload Identity** (Steps 3B):
+Use this configuration if you're using **Kubernetes Workload Identity** (Steps 4B):
 
 ```yaml
 providerConfig:
@@ -621,6 +665,7 @@ providerConfig:
       serviceAccountTokenAudience: "<app-audience>"
     azure:
       enabled: true
+      azure_cloud_name: "<cloud-name>"  # Optional, defaults to AzureCloud
       azure_app_client_id: "<app-client-id>"
       azure_app_audience: "<app-audience>"
       jfrog_oidc_provider_name: "<oidc-provider-name>"
@@ -631,7 +676,7 @@ rbac:
 # Note: You must also create the service account and annotate it as described in Step 3B.2
 ```
 
-> **ℹ️ Note:** When using Workload Identity, ensure the service account `jfrog-provider-sa` is annotated with `JFrogExchange="true"` and the Azure App Client ID as shown in Step 3B.2.
+> **ℹ️ Note:** When using Workload Identity, ensure the service account `jfrog-provider-sa` is annotated with `JFrogExchange="true"` and the Azure App Client ID as shown in Step 4B.2.
 
 
 ### 📦 Install with Helm
@@ -714,3 +759,4 @@ For troubleshooting help, see the [debug documentation](./debug.md).
 - [JFrog Artifactory OIDC Documentation](https://www.jfrog.com/confluence/display/JFROG/Access+Tokens#AccessTokens-OIDCIntegration)
 - [Kubernetes Kubelet Credential Provider](https://kubernetes.io/docs/tasks/administer-cluster/kubelet-credential-provider/)
 - [Main README](./README.md)
+

@@ -7,6 +7,7 @@ providerConfig:
     azure:
       enabled: true
       azure_app_client_id: "<azure-app-client-id>"
+      # azure_cloud_name: "AzureCloud"
       azure_tenant_id: "<azure-tenant-id>"
       azure_app_audience: "api://AzureADTokenExchange"
       jfrog_oidc_provider_name: "<jfrog-oidc-provider-name>"
