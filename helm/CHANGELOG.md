@@ -2,6 +2,9 @@
 
 All notable changes to this Helm chart will be documented in this file.
 
+## [1.1.1] - 21st April, 2026
+* Added support for Azure China configured using `azure_cloud_name`
+
 ## [1.1.0] - 7th April, 2026
 * Added KEP-4412 - Pod Level Identity Support For JFrog Artifactory on GCP
 * Added support for `http_timeout_seconds` for HTTP calls
