@@ -34,7 +34,7 @@ import (
 const (
 	defaultSecretTTL   = "18000" // 5 hours
 	defaultHTTPTimeout = 10 * time.Second
-	logFileLocation    = "/var/log/jfrog-credential-provider.log" // "/var/log/jfrog-credential-provider.log" // used for debug: "jfrog-credential-provider.log"
+	logFileLocation    = "/var/log/jfrog-credentials-provider/jfrog-credentials-provider.log"
 	logPrefix          = "[JFROG CREDENTIALS PROVIDER] "
 )
 

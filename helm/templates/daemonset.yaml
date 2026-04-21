@@ -76,9 +76,19 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
       containers:
-        - name: jfrog-credential-provider-injector-pause
+        - name: jfrog-credentials-provider-main
+        {{- if .Values.containerLogging.enabled }}
+          image: {{ include "jfrog-credential-provider.initContainerImage" . }}
+          imagePullPolicy: {{ .Values.initContainer.image.pullPolicy }}
+          command: ["sh", "-c", "tail -F /var/log/jfrog-credentials-provider/jfrog-credentials-provider.log"]
+          volumeMounts:
+            - name: jfrog-log-dir
+              mountPath: /var/log/jfrog-credentials-provider
+              readOnly: true
+        {{- else }}
           image: {{ include "jfrog-credential-provider.pauseImage" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+        {{- end }}
           {{- with .Values.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -109,6 +119,12 @@ spec:
         - name: {{ include "jfrog-credential-provider.fullname" . }}-config
           configMap:
             name: {{ include "jfrog-credential-provider.fullname" . }}-config
+        {{- if .Values.containerLogging.enabled }}
+        - name: jfrog-log-dir
+          hostPath:
+            path: /var/log/jfrog-credentials-provider
+            type: DirectoryOrCreate
+        {{- end }}
         {{- if .Values.customVolumes }}
         {{- .Values.customVolumes | nindent 8 }}
         {{- end }}

@@ -20,6 +20,16 @@ resources: {}
 # Enable automatic upgrade of the credential provider binary
 autoUpgrade: false
 
+# Log level for the credential provider binary
+# Supported values: "INFO" (default), "DEBUG"
+logLevel: "INFO"
+
+# Container logging configuration
+# When enabled, the DaemonSet main container tails the credential provider log file
+# from the host, making logs accessible via kubectl logs
+containerLogging:
+  enabled: false
+
 # Init container configuration
 initContainer:
   image:
