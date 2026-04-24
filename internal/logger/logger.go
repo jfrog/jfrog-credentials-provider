@@ -43,12 +43,16 @@ func NewLogger() (*Logger, error) {
 	}
 
 	handler := slog.NewJSONHandler(logFile, &slog.HandlerOptions{
-		AddSource: true,
-		Level:     level,
+		Level: level,
 	})
 
+	hostname, err := os.Hostname()
+	if err != nil {
+		hostname = "unknown"
+	}
+
 	return &Logger{
-		Logger: slog.New(handler),
+		Logger: slog.New(handler).With("hostname", hostname),
 	}, nil
 }
 
