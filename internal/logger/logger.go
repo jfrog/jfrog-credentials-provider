@@ -15,51 +15,71 @@
 package logger
 
 import (
-	"log"
+	"fmt"
+	"log/slog"
 	"os"
+	"path/filepath"
+	"strings"
 )
 
-const logFileLocation = "/var/log/jfrog-credential-provider.log"
-const logPrefix = "[JFROG CREDENTIALS PROVIDER] "
+const logFileLocation = "/var/log/jfrog-credentials-provider/jfrog-credentials-provider.log"
 
 type Logger struct {
-	Logger *log.Logger
+	Logger *slog.Logger
 }
 
 func NewLogger() (*Logger, error) {
+	if err := os.MkdirAll(filepath.Dir(logFileLocation), 0755); err != nil {
+		return nil, err
+	}
 	logFile, err := os.OpenFile(logFileLocation, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return nil, err
 	}
+
+	level := slog.LevelInfo
+	if strings.EqualFold(os.Getenv("log_level"), "debug") {
+		level = slog.LevelDebug
+	}
+
+	handler := slog.NewJSONHandler(logFile, &slog.HandlerOptions{
+		Level: level,
+	})
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		hostname = "unknown"
+	}
+
 	return &Logger{
-		Logger: log.New(logFile, logPrefix, log.Ldate|log.Ltime|log.Lshortfile),
+		Logger: slog.New(handler).With("hostname", hostname),
 	}, nil
 }
 
 func (l *Logger) Info(message interface{}) {
-	l.Logger.Println("[INFO] " + formatMessage(message))
+	l.Logger.Info(toStr(message))
 }
 
 func (l *Logger) Debug(message interface{}) {
-	l.Logger.Println("[DEBUG] " + formatMessage(message))
+	l.Logger.Debug(toStr(message))
 }
 
 func (l *Logger) Error(message interface{}) {
-	l.Logger.Println("[ERROR] " + formatMessage(message))
+	l.Logger.Error(toStr(message))
 }
 
 func (l *Logger) Exit(message interface{}, code int) {
-	l.Logger.Println("[EXIT] " + formatMessage(message))
+	l.Logger.Error(toStr(message))
 	os.Exit(code)
 }
 
-func formatMessage(message interface{}) string {
+func toStr(message interface{}) string {
 	switch v := message.(type) {
 	case string:
 		return v
 	case error:
 		return v.Error()
 	default:
-		return "unknown message type"
+		return fmt.Sprintf("%v", v)
 	}
 }

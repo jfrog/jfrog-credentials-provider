@@ -75,6 +75,10 @@ data:
       "name": "disable_provider_autoupdate",
       "value": "{{ not $.Values.autoUpgrade }}"
     },
+    {
+      "name": "log_level",
+      "value": {{ $.Values.logLevel | toJson }}
+    },
     {{- if .http_timeout_seconds }}
     {
       "name": "http_timeout_seconds",
@@ -136,6 +140,8 @@ data:
       value: "{{ .gcp.jfrog_oidc_provider_name }}"
     - name: disable_provider_autoupdate
       value: "{{ not $.Values.autoUpgrade }}"
+    - name: log_level
+      value: "{{ $.Values.logLevel }}"
     {{- if .http_timeout_seconds }}
     - name: http_timeout_seconds
       value: "{{ .http_timeout_seconds }}"
@@ -162,6 +168,8 @@ data:
       value: "{{ .azure.jfrog_oidc_provider_name }}"
     - name: disable_provider_autoupdate
       value: "{{ not $.Values.autoUpgrade }}"
+    - name: log_level
+      value: "{{ $.Values.logLevel }}"
     {{- if .http_timeout_seconds }}
     - name: http_timeout_seconds
       value: "{{ .http_timeout_seconds }}"

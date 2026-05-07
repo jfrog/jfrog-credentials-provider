@@ -58,3 +58,9 @@
   {{- end }}
 {{- end }}
 
+{{/* Validate logLevel is a supported value */}}
+{{- $logLevel := upper .Values.logLevel }}
+{{- if and (ne $logLevel "INFO") (ne $logLevel "DEBUG") }}
+{{- fail (printf "\nERROR: Invalid logLevel %q. Supported values are \"INFO\" or \"DEBUG\"." .Values.logLevel) }}
+{{- end }}
+
