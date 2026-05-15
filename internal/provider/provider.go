@@ -26,6 +26,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -134,8 +135,8 @@ func cloudProviderAuth(svc *service.Service, ctx context.Context, logs *logger.L
 	switch cloudProvider {
 	case utils.CloudProviderAWS:
 		logs.Debug("Detected AWS cloud provider")
-		awsAuthMethod, awsRoleName := validateAWSEnvVariables(logs, request)
-		rtUsername, rtToken = handleAWSAuth(svc, ctx, logs, awsAuthMethod, awsRoleName, artifactoryUrl, secretTTL, request)
+		awsEnvVariables := validateAWSEnvVariables(logs, request)
+		rtUsername, rtToken = handleAWSAuth(svc, ctx, logs, awsEnvVariables, artifactoryUrl, secretTTL, request)
 		return rtUsername, rtToken
 	case utils.CloudProviderAzure:
 		logs.Debug("Detected Azure cloud provider")
@@ -161,17 +162,30 @@ func validateRTRequiredEnvVariables(logs *logger.Logger) string {
 	return artifactoryUrl
 }
 
-func validateAWSEnvVariables(logs *logger.Logger, request utils.CredentialProviderRequest) (string, string) {
+func validateAWSEnvVariables(logs *logger.Logger, request utils.CredentialProviderRequest) utils.AwsEnvVariables {
 	awsAuthMethod := os.Getenv("aws_auth_method")
 	if awsAuthMethod == "" {
 		logs.Info("awsAuthMethod not set, will default to Assume role")
 		awsAuthMethod = "assume_role"
-	} else if awsAuthMethod != "cognito_oidc" && awsAuthMethod != "assume_role" {
+	} else if awsAuthMethod != "cognito_oidc" && awsAuthMethod != "assume_role" && awsAuthMethod != "assume_external_role" {
 		logs.Exit("wrong aws_auth_method value :"+awsAuthMethod, 1)
 	}
 
 	// aws_role_name is only required for assume_role / web_identity, not for cognito_oidc
 	awsRoleName := os.Getenv("aws_role_name")
+	awsExternalRoleArn := os.Getenv("aws_external_role_arn")
+	awsExternalRoleSessionDurationVal := os.Getenv("aws_external_role_session_duration")
+	awsExternalRoleSessionDuration := 3600
+	if awsExternalRoleSessionDurationVal != "" {
+		duration, err := strconv.Atoi(awsExternalRoleSessionDurationVal)
+		if err != nil || duration > 43200 {
+			logs.Info("bad value for awsExternalRoleSessionDuration, defaullting to 3600")
+		} else {
+			awsExternalRoleSessionDuration = duration
+		}
+	}
+
+	logs.Info("awsExternalRoleArn set to :" + awsExternalRoleArn)
 
 	if request.ServiceAccountAnnotations["eks.amazonaws.com/role-arn"] != "" {
 		awsRoleName = request.ServiceAccountAnnotations["eks.amazonaws.com/role-arn"]
@@ -185,25 +199,30 @@ func validateAWSEnvVariables(logs *logger.Logger, request utils.CredentialProvid
 		logs.Info("getting envs - " + "awsRoleName :" + awsRoleName)
 	}
 
-	return awsAuthMethod, awsRoleName
+	return utils.AwsEnvVariables{
+		AwsAuthMethod:           awsAuthMethod,
+		AwsRoleName:             awsRoleName,
+		AwsExternalRoleArn:      awsExternalRoleArn,
+		AwsExternalRoleDuration: awsExternalRoleSessionDuration,
+	}
 }
 
-func handleAWSAuth(svc *service.Service, ctx context.Context, logs *logger.Logger, awsAuthMethod, awsRoleName, artifactoryUrl, secretTTL string, request utils.CredentialProviderRequest) (string, string) {
+func handleAWSAuth(svc *service.Service, ctx context.Context, logs *logger.Logger, awsEnvVariables utils.AwsEnvVariables, artifactoryUrl, secretTTL string, request utils.CredentialProviderRequest) (string, string) {
 	var rtUsername, rtToken string
 	var useServiceAccount = false
 
 	if request.ServiceAccountAnnotations["JFrogExchange"] == "true" && request.ServiceAccountAnnotations["eks.amazonaws.com/role-arn"] != "" {
 		useServiceAccount = true
-		awsRoleName = request.ServiceAccountAnnotations["eks.amazonaws.com/role-arn"]
+		awsEnvVariables.AwsRoleName = request.ServiceAccountAnnotations["eks.amazonaws.com/role-arn"]
 	}
 
 	if useServiceAccount {
-		awsAuthMethod = "web_identity"
+		awsEnvVariables.AwsAuthMethod = "web_identity"
 		logs.Info("Using web_identity aws auth method based on service account annotation")
 	}
 
-	if awsAuthMethod == "assume_role" || awsAuthMethod == "web_identity" {
-		req, err := handlers.GetAWSSignedRequest(svc, ctx, request.ServiceAccountToken, awsRoleName, awsAuthMethod)
+	if awsEnvVariables.AwsAuthMethod == "assume_role" || awsEnvVariables.AwsAuthMethod == "web_identity" || awsEnvVariables.AwsAuthMethod == "assume_external_role" {
+		req, err := handlers.GetAWSSignedRequest(svc, ctx, request.ServiceAccountToken, awsEnvVariables)
 		if err != nil {
 			logs.Exit("ERROR in JFrog Credentials provider, could not get aws signed request :"+err.Error(), 1)
 		}
@@ -225,7 +244,7 @@ func handleAWSAuth(svc *service.Service, ctx context.Context, logs *logger.Logge
 				jfrogOidcProviderName, secretName, userPoolName, resourceServerName, scope))
 		}
 
-		token, err := handlers.GetAwsOidcToken(svc, ctx, awsRoleName, secretName, userPoolName, resourceServerName, scope)
+		token, err := handlers.GetAwsOidcToken(svc, ctx, awsEnvVariables.AwsRoleName, secretName, userPoolName, resourceServerName, scope)
 		if err != nil {
 			logs.Exit("ERROR in JFrog Credentials provider, could not get aws oidc token :"+err.Error(), 1)
 		}
