@@ -336,7 +336,7 @@ func ValidateJfrogProviderConfig(config Provider, cloudProvider string) error {
 	case CloudProviderAWS:
 		awsAuthMethod := GetEnvVarValue(config.Env, "aws_auth_method")
 		if awsAuthMethod != "cognito_oidc" && awsAuthMethod != "assume_role" && awsAuthMethod != "assume_external_role" {
-			return fmt.Errorf("aws_auth_method can only be set as cognito_oidc, assume_role or assume_external_role however the current value is :%s", awsAuthMethod)
+			return fmt.Errorf("aws_auth_method can only be set as cognito_oidc, assume_role or assume_external_role however the current value is: %s", awsAuthMethod)
 		}
 
 		if awsAuthMethod == "cognito_oidc" {

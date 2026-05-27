@@ -58,6 +58,23 @@
   {{- end }}
 {{- end }}
 
+{{/* platform is optional; when set, only openshift is valid */}}
+{{- if and .Values.platform (ne .Values.platform "openshift") }}
+{{- fail (printf "\nERROR: Invalid platform %q. Omit platform for EKS, AKS, and GKE, or set platform: openshift for OpenShift (see OpenShift.md)." .Values.platform) }}
+{{- end }}
+{{- if eq (include "jfrog-credential-provider.isOpenShift" .) "true" }}
+{{- if ne (include "jfrog-credential-provider.isOpenShiftStaging" .) "true" }}
+{{- fail "\nERROR: platform: openshift requires providerConfig[].aws.enabled or providerConfig[].azure.enabled. OpenShift on Google Cloud is not supported in this chart version. See OpenShift.md." }}
+{{- end }}
+{{- range .Values.providerConfig }}
+{{- if and .aws .aws.enabled }}
+{{- if not (and .tokenAttributes .tokenAttributes.enabled .tokenAttributes.requireServiceAccount) }}
+{{- fail (printf "\nERROR: platform: openshift with AWS requires providerConfig[%q].tokenAttributes.enabled: true and requireServiceAccount: true (IRSA only; aws_role_name fallback is not supported). See OpenShift.md." .name) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+
 {{/* Validate logLevel is a supported value */}}
 {{- $logLevel := upper .Values.logLevel }}
 {{- if and (ne $logLevel "INFO") (ne $logLevel "DEBUG") }}

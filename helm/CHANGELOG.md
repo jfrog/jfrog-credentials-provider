@@ -2,6 +2,19 @@
 
 All notable changes to this Helm chart will be documented in this file.
 
+## [1.3.0] - 11th June, 2026
+
+* Added optional `platform: openshift` for OpenShift on AWS or Azure — omit `platform` for EKS, AKS, and GKE; YAML merge into `ecr-credential-provider.yaml` (AWS) or `acr-credential-provider.yaml` (Azure)
+* OpenShift projected SA (`tokenAttributes`): **OpenShift 4.21+** only; 4.20 kubelet rejects `tokenAttributes` without `KubeletServiceAccountTokenForCredentialProviders`
+* Added [OpenShift.md](../OpenShift.md) (consolidates ROSA.md and ARO.md)
+* Added [examples/openshift-azure-projected-sa-values.yaml](../examples/openshift-azure-projected-sa-values.yaml) and [examples/openshift-aws-projected-sa-values.yaml](../examples/openshift-aws-projected-sa-values.yaml)
+* Added `providerConfig[].tokenAttributes.requireServiceAccount` for AWS / IRSA
+* Added `openshift.grantPrivilegedSCC` for SCC on OpenShift
+* Added `openshift.labelNamespacePodSecurity` (default `true`) to apply privileged Pod Security Admission labels on the release namespace; set `false` to manage labels outside Helm
+* OpenShift namespace labels: chart sets `enforce` and `scc.podSecurityLabelSync` only (not `audit`/`warn`); create the release namespace before `helm install` and do not use `--create-namespace` (conflicts with chart-managed `Namespace` resource)
+* OpenShift: stage plugin binary on `/var/lib/jfrog-credential-provider/bin` and bind-mount over read-only `/usr/libexec/kubelet-image-credential-provider-plugins`
+* OpenShift: inject `cloud_provider` for `add-provider-config` (`MergeConfig` probes IMDS/metadata from pod network, which often fails on ROSA)
+
 ## [1.2.1] - 11th June, 2026
 * Added `internalBinaryHostPath` to support air-gapped / AMI-baked binaries by skipping the download
 * Added `binaryDownload.auth` to support authenticated binary downloads from a private Artifactory repository

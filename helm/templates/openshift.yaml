@@ -1,0 +1,19 @@
+{{- if eq (include "jfrog-credential-provider.isOpenShift" .) "true" }}
+{{- if .Values.openshift.grantPrivilegedSCC }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "jfrog-credential-provider.fullname" . }}-scc-privileged
+  namespace: {{ include "jfrog-credential-provider.namespace" . }}
+  labels:
+    {{- include "jfrog-credential-provider.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:privileged
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "jfrog-credential-provider.serviceAccountName" . }}
+    namespace: {{ include "jfrog-credential-provider.namespace" . }}
+{{- end }}
+{{- end }}

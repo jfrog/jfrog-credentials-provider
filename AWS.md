@@ -2,6 +2,8 @@
 
 This guide walks you through setting up the JFrog Kubelet Credential Provider on Amazon Elastic Kubernetes Service (EKS) from scratch.
 
+> For **OpenShift on AWS** (including Red Hat OpenShift Service on AWS), see [OpenShift.md](./OpenShift.md).
+
 ## 📋 Overview
 
 The JFrog Credentials Provider uses AWS IAM roles or AWS Cognito OIDC to authenticate with JFrog Artifactory via OpenID Connect (OIDC). This eliminates the need for manual image pull secret management by dynamically retrieving credentials when pulling container images.

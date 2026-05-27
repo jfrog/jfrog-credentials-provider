@@ -153,3 +153,154 @@ Fetching JFrog audience from values configuration
 {{- end }}
 {{- $audience -}}
 {{- end }}
+
+{{/*
+True only when platform: openshift is set. Omitted platform uses legacy EKS/AKS/GKE paths.
+*/}}
+{{- define "jfrog-credential-provider.isOpenShift" -}}
+{{- eq .Values.platform "openshift" -}}
+{{- end }}
+
+{{/*
+True when the chart should manage Pod Security Admission labels on the release namespace.
+*/}}
+{{- define "jfrog-credential-provider.openshiftLabelNamespacePodSecurity" -}}
+{{- if ne (include "jfrog-credential-provider.isOpenShift" .) "true" -}}
+false
+{{- else if not .Values.openshift.labelNamespacePodSecurity -}}
+false
+{{- else -}}
+true
+{{- end -}}
+{{- end }}
+
+{{/*
+True when OpenShift AWS uses projected SA only (no aws_role_name node fallback in kubelet config).
+*/}}
+{{- define "jfrog-credential-provider.awsOmitRoleNameFallback" -}}
+{{- $item := index . "item" -}}
+{{- $root := index . "root" -}}
+{{- if ne (include "jfrog-credential-provider.isOpenShift" $root) "true" -}}
+false
+{{- else if not (and $item.tokenAttributes $item.tokenAttributes.enabled $item.tokenAttributes.requireServiceAccount) -}}
+false
+{{- else -}}
+true
+{{- end -}}
+{{- end }}
+
+{{/*
+OpenShift on AWS or Azure: RHCOS paths, staging dir, bind-mount over /usr/libexec.
+*/}}
+{{- define "jfrog-credential-provider.isOpenShiftStaging" -}}
+{{- if not (eq (include "jfrog-credential-provider.isOpenShift" .) "true") -}}
+false
+{{- else -}}
+{{- $cp := include "jfrog-credential-provider.cloudProvider" . -}}
+{{- if or (eq $cp "aws") (eq $cp "azure") -}}
+true
+{{- else -}}
+false
+{{- end -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Built-in platform credential plugin binary on OpenShift (ECR / ACR).
+*/}}
+{{- define "jfrog-credential-provider.openshiftPlatformPlugin" -}}
+{{- $cp := include "jfrog-credential-provider.cloudProvider" . -}}
+{{- if eq $cp "azure" -}}
+acr-credential-provider
+{{- else if eq $cp "gcp" -}}
+gcr-credential-provider
+{{- else -}}
+ecr-credential-provider
+{{- end -}}
+{{- end }}
+
+{{/*
+Kubelet credential provider config file on OpenShift (/etc/kubernetes/credential-providers/).
+*/}}
+{{- define "jfrog-credential-provider.openshiftKubeletConfigPath" -}}
+/etc/kubernetes/credential-providers/{{ include "jfrog-credential-provider.openshiftPlatformPlugin" . }}.yaml
+{{- end }}
+
+{{/*
+True when kubelet credential provider config uses YAML (Azure, GCP, or OpenShift on AWS/Azure)
+*/}}
+{{- define "jfrog-credential-provider.kubeletConfigYaml" -}}
+{{- $cloudProvider := include "jfrog-credential-provider.cloudProvider" . -}}
+{{- if or (eq $cloudProvider "azure") (eq $cloudProvider "gcp") -}}
+true
+{{- else if and (eq $cloudProvider "aws") (eq (include "jfrog-credential-provider.isOpenShift" .) "true") -}}
+true
+{{- else -}}
+false
+{{- end -}}
+{{- end }}
+
+{{/*
+DaemonSet needs host filesystem mount (not AKS-style /var/lib/kubelet only).
+*/}}
+{{- define "jfrog-credential-provider.useHostMount" -}}
+{{- $cp := include "jfrog-credential-provider.cloudProvider" . -}}
+{{- if or (eq $cp "aws") (eq $cp "gcp") (eq (include "jfrog-credential-provider.isOpenShiftStaging" .) "true") -}}
+true
+{{- else -}}
+false
+{{- end -}}
+{{- end }}
+
+{{/*
+Env assignments for nsenter merge: MergeConfig probes cloud metadata from pod network unless cloud_provider is set.
+OpenShift DaemonSet pods often cannot reach cloud instance metadata → force cloud from Helm.
+GCP values use "gcp"; Go validates as "google".
+*/}}
+{{- define "jfrog-credential-provider.addProviderConfigEnvAssignments" -}}
+{{- $cp := include "jfrog-credential-provider.cloudProvider" . -}}
+{{- if eq $cp "aws" -}}
+cloud_provider=aws
+{{- else if eq $cp "azure" -}}
+cloud_provider=azure
+{{- else if eq $cp "gcp" -}}
+cloud_provider=google
+{{- end -}}
+{{- end }}
+
+{{/*
+Azure env for YAML kubelet config. Omit empty tenant/nodepool IDs (workload identity does not need them).
+*/}}
+{{- define "jfrog-credential-provider.azureEnvYaml" -}}
+{{- $item := .item -}}
+{{- $values := .Values -}}
+env:
+  - name: artifactory_url
+    value: {{ $item.artifactoryUrl | quote }}
+  - name: azure_app_client_id
+    value: {{ $item.azure.azure_app_client_id | quote }}
+  {{- if $item.azure.azure_cloud_name }}
+  - name: azure_cloud_name
+    value: {{ $item.azure.azure_cloud_name | quote }}
+  {{- end }}
+  {{- if $item.azure.azure_tenant_id }}
+  - name: azure_tenant_id
+    value: {{ $item.azure.azure_tenant_id | quote }}
+  {{- end }}
+  {{- if $item.azure.azure_nodepool_client_id }}
+  - name: azure_nodepool_client_id
+    value: {{ $item.azure.azure_nodepool_client_id | quote }}
+  {{- end }}
+  - name: azure_app_audience
+    value: {{ $item.azure.azure_app_audience | quote }}
+  - name: jfrog_oidc_provider_name
+    value: {{ $item.azure.jfrog_oidc_provider_name | quote }}
+  - name: disable_provider_autoupdate
+    value: {{ not $values.autoUpgrade | quote }}
+  - name: log_level
+    value: {{ $values.logLevel | quote }}
+  {{- if $item.http_timeout_seconds }}
+  - name: http_timeout_seconds
+    value: {{ $item.http_timeout_seconds | quote }}
+  {{- end }}
+{{- end }}

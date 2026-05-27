@@ -1,9 +1,24 @@
 # Default values for jfrog-credential-provider
 # This is a YAML-formatted file.
 
+# Kubernetes distribution (optional). Omit for EKS, AKS, and GKE (default behavior).
+# Set to "openshift" for OpenShift on AWS or Azure — see OpenShift.md.
+# tokenAttributes (projected service accounts): OpenShift 4.21+ only (not 4.20).
+# platform: openshift
+
+# OpenShift only (ignored when platform is not openshift)
+openshift:
+  # RoleBinding to system:openshift:scc:privileged for the chart ServiceAccount.
+  grantPrivilegedSCC: false
+  # Apply privileged Pod Security labels on the release namespace (see OpenShift.md).
+  # When true, create the namespace before helm install; do not use helm --create-namespace.
+  labelNamespacePodSecurity: true
+  # Writable host path for the plugin binary on OpenShift (RHCOS /usr is read-only; bind-mounted at runtime)
+  stagingBinaryDir: /var/lib/jfrog-credential-provider/bin
+
 # Download URL for the credential provider binary
 # The chart will automatically append the architecture suffix (-amd64 or -arm64)
-downloadUrl: "https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/1.2.0/jfrog-credential-provider-linux"
+downloadUrl: "https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/1.3.0/jfrog-credential-provider-linux"
 
 # Authentication for downloading the provider binary from a private Artifactory instance.
 # Leave all fields empty for anonymous/public download (default behaviour).
@@ -109,11 +124,15 @@ providerConfig:
     # Only supported for AWS at the moment
     tokenAttributes:
       enabled: false
+      # When true, kubelet only invokes the plugin for pods with a service account (recommended for IRSA on ROSA)
+      requireServiceAccount: false
     # AWS configuration
     aws:
       enabled: false
       aws_auth_method: "assume_role"  # Options: "assume_role", "assume_external_role", or "cognito_oidc"
       # aws_region: ""  # Optional: explicit AWS region (e.g. "us-east-1"). If empty, resolved from EC2 metadata.
+      # IAM role ARN for assume_role (EKS node role or fallback). Not used on OpenShift with
+      # tokenAttributes.requireServiceAccount — omit aws_role_name there; IRSA uses SA annotations.
       aws_role_name: "dummy"
       # Secret TTL should be greater than defaultCacheDuration
       # only applicable for assume_role / assume_external_role methods

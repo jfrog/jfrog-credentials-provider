@@ -1,6 +1,6 @@
 # 🐸 JFrog Kubelet Credential Provider
 
-A [Kubernetes kubelet credential provider](https://kubernetes.io/docs/tasks/administer-cluster/kubelet-credential-provider/) **for Amazon EKS, Azure AKS and Google GKE** that enables seamless, passwordless authentication with JFrog Artifactory for container image pulls, eliminating the need for manual image pull secret management.
+A [Kubernetes kubelet credential provider](https://kubernetes.io/docs/tasks/administer-cluster/kubelet-credential-provider/) **for Amazon EKS, Azure AKS, Google GKE, and Red Hat OpenShift (on AWS and Azure)** that enables seamless, passwordless authentication with JFrog Artifactory for container image pulls, eliminating the need for manual image pull secret management.
 
 ## 📋 Overview
 
@@ -126,6 +126,7 @@ Choose your cloud provider to get started:
 | Cloud Provider | Setup Guide | Status |
 |:--------------:|:-----------:|:------:|
 | ☁️ **AWS EKS** | [AWS Setup Guide](./AWS.md) | ✅ Supported |
+| 🔴 **OpenShift (AWS / Azure)** | [OpenShift Setup Guide](./OpenShift.md) | ✅ Supported (**OpenShift 4.21+ required**) |
 | 🔷 **Azure AKS** | [Azure Setup Guide](./AZURE.md) | ✅ Supported |
 | 🔵 **GCP GKE** | [GCP Setup Guide](./GCP.md) | ✅ Supported |
 
@@ -213,6 +214,7 @@ For detailed debugging instructions, troubleshooting steps, and common issues, s
 ### 🔗 Related Links
 
 - [☁️ AWS Setup Guide](./AWS.md) - Complete AWS EKS setup instructions
+- [🔴 OpenShift Setup Guide](./OpenShift.md) - OpenShift on AWS and Azure with projected service accounts
 - [🔷 Azure Setup Guide](./AZURE.md) - Complete Azure AKS setup instructions
 - [🔵 GCP Setup Guide](./GCP.md) - Complete GCP GKE setup instructions
 - [🐛 Debug Documentation](./debug.md) - Troubleshooting and debugging guide
