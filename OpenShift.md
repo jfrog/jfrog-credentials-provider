@@ -41,10 +41,10 @@ This provider has been tested on:
 
 OpenShift (when deployed on AWS or Azure) automatically deploys kubelet credential providers on worker nodes:
 
-| Component | Path on worker nodes |
-|-----------|----------------------|
-| Plugin binaries | `/usr/libexec/kubelet-image-credential-provider-plugins/` |
-| Kubelet config | `/etc/kubernetes/credential-providers/<platform-plugin>.yaml` |
+| Component | Default path on worker nodes (override via `openshift.*` in Helm values) |
+|-----------|------------------------------------------------------------------------|
+| Plugin binaries | `openshift.targetBinaryDir` (default `/usr/libexec/kubelet-image-credential-provider-plugins/`) |
+| Kubelet config | `openshift.targetProviderConfigDir` + `<platform-plugin>.yaml` (default `/etc/kubernetes/credential-providers/`) |
 
 | Cloud | Platform plugin | Merged config file |
 |-------|-----------------|-------------------|
@@ -185,7 +185,7 @@ export OIDC_HOSTPATH="${OIDC_ISSUER#https://}"
 export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 export APP_NAMESPACE="jfrog-pull-test"
 export APP_SA_NAME="jfrog-pull-sa"
-# Role name is jfrog-pull-${APP_NAMESPACE}-${APP_SA_NAME} (do not set ROLE_NAME separately)
+export ROLE_NAME="jfrog-pull-${APP_NAMESPACE}-${APP_SA_NAME}"
 
 cat > trust-policy.json <<EOF
 {
@@ -262,6 +262,9 @@ See the [JFrog Artifactory OIDC documentation](https://www.jfrog.com/confluence/
 | `providerConfig[].aws.aws_region` | AWS region |
 | `openshift.grantPrivilegedSCC` | `true` |
 | `openshift.labelNamespacePodSecurity` | `true` (default; set `false` to skip chart-managed PSA labels) |
+| `openshift.stagingBinaryDir` | Writable staging path for plugins (default `/var/lib/jfrog-credential-provider/bin`) |
+| `openshift.targetBinaryDir` | Node plugin directory — bind-mount target (default `/usr/libexec/kubelet-image-credential-provider-plugins`) |
+| `openshift.targetProviderConfigDir` | Platform kubelet credential YAML directory (default `/etc/kubernetes/credential-providers`) |
 
 ### Verification
 
@@ -413,6 +416,9 @@ Configuration notes:
 | `providerConfig[].azure.azure_app_audience` | `api://AzureADTokenExchange` |
 | `openshift.grantPrivilegedSCC` | `true` |
 | `openshift.labelNamespacePodSecurity` | `true` (default; set `false` to skip chart-managed PSA labels) |
+| `openshift.stagingBinaryDir` | Writable staging path for plugins |
+| `openshift.targetBinaryDir` | Node plugin directory — bind-mount target |
+| `openshift.targetProviderConfigDir` | Platform kubelet credential YAML directory |
 
 ### Verification
 

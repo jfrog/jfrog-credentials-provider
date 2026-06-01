@@ -13,8 +13,12 @@ openshift:
   # Apply privileged Pod Security labels on the release namespace (see OpenShift.md).
   # When true, create the namespace before helm install; do not use helm --create-namespace.
   labelNamespacePodSecurity: true
-  # Writable host path for the plugin binary on OpenShift (RHCOS /usr is read-only; bind-mounted at runtime)
+  # Writable host path for plugin binaries on OpenShift (RHCOS /usr is read-only; bind-mounted at runtime).
   stagingBinaryDir: /var/lib/jfrog-credential-provider/bin
+  # Kubelet plugin directory on the node (bind-mount target). Override if your OpenShift version uses a different path.
+  targetBinaryDir: /usr/libexec/kubelet-image-credential-provider-plugins
+  # Directory containing the platform kubelet credential provider YAML (merged with JFrog config).
+  targetProviderConfigDir: /etc/kubernetes/credential-providers
 
 # Download URL for the credential provider binary
 # The chart will automatically append the architecture suffix (-amd64 or -arm64)

@@ -29,7 +29,7 @@ data:
     {{- else if $isOpenShiftStaging }}
     log "Platform: openshift ({{ $cloudProvider }} credential provider paths)"
     export KUBELET_MOUNT_PATH="/host"
-    export JFROG_CREDENTIAL_PROVIDER_BINARY_DIR="/usr/libexec/kubelet-image-credential-provider-plugins"
+    export JFROG_CREDENTIAL_PROVIDER_BINARY_DIR="{{ .Values.openshift.targetBinaryDir }}"
     export JFROG_STAGING_BINARY_DIR="{{ .Values.openshift.stagingBinaryDir }}"
     export KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH="{{ include "jfrog-credential-provider.openshiftKubeletConfigPath" . }}"
     export PLATFORM_CREDENTIAL_PLUGIN="{{ $platformPlugin }}"

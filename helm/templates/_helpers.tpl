@@ -220,10 +220,11 @@ ecr-credential-provider
 {{- end }}
 
 {{/*
-Kubelet credential provider config file on OpenShift (/etc/kubernetes/credential-providers/).
+Kubelet credential provider config file on OpenShift (targetProviderConfigDir + platform plugin name).
 */}}
 {{- define "jfrog-credential-provider.openshiftKubeletConfigPath" -}}
-/etc/kubernetes/credential-providers/{{ include "jfrog-credential-provider.openshiftPlatformPlugin" . }}.yaml
+{{- $dir := trimSuffix "/" .Values.openshift.targetProviderConfigDir -}}
+{{ $dir }}/{{ include "jfrog-credential-provider.openshiftPlatformPlugin" . }}.yaml
 {{- end }}
 
 {{/*

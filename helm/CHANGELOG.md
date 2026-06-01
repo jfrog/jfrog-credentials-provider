@@ -12,7 +12,8 @@ All notable changes to this Helm chart will be documented in this file.
 * Added `openshift.grantPrivilegedSCC` for SCC on OpenShift
 * Added `openshift.labelNamespacePodSecurity` (default `true`) to apply privileged Pod Security Admission labels on the release namespace; set `false` to manage labels outside Helm
 * OpenShift namespace labels: chart sets `enforce` and `scc.podSecurityLabelSync` only (not `audit`/`warn`); create the release namespace before `helm install` and do not use `--create-namespace` (conflicts with chart-managed `Namespace` resource)
-* OpenShift: stage plugin binary on `/var/lib/jfrog-credential-provider/bin` and bind-mount over read-only `/usr/libexec/kubelet-image-credential-provider-plugins`
+* OpenShift: stage plugin binary on `openshift.stagingBinaryDir` (default `/var/lib/jfrog-credential-provider/bin`) and bind-mount over `openshift.targetBinaryDir` (default `/usr/libexec/kubelet-image-credential-provider-plugins`)
+* OpenShift: configurable `openshift.targetProviderConfigDir` for platform kubelet credential YAML merge path (default `/etc/kubernetes/credential-providers`)
 * OpenShift: inject `cloud_provider` for `add-provider-config` (`MergeConfig` probes IMDS/metadata from pod network, which often fails on ROSA)
 
 ## [1.2.1] - 11th June, 2026
