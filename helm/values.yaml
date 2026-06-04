@@ -128,7 +128,10 @@ providerConfig:
     # Only supported for AWS at the moment
     tokenAttributes:
       enabled: false
-      # When true, kubelet only invokes the plugin for pods with a service account (recommended for IRSA on ROSA)
+      # When true, kubelet only invokes the plugin for pods that use a ServiceAccount with the
+      # required identity annotations. Required on OpenShift: IRSA on AWS (eks.amazonaws.com/role-arn,
+      # JFrogExchange) and Entra Workload Identity on Azure (azure.workload.identity/client-id,
+      # JFrogExchange).
       requireServiceAccount: false
     # AWS configuration
     aws:

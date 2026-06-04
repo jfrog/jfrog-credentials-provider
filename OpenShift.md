@@ -14,7 +14,7 @@ Managed offerings such as ROSA (HCP and Classic) and ARO are supported deploymen
 
 * On OpenShift you must use projected service account tokens for Artifactory image pulls:
     - Set `providerConfig[].tokenAttributes.enabled: true` and `requireServiceAccount: true`.
-    - Annotate **application** ServiceAccounts that pull images. You should **never** annotate the chart DaemonSet ServiceAccount.
+    - Annotate **application** ServiceAccounts that pull images. Do **not** annotate the chart DaemonSet ServiceAccount, that account is only for the privileged injector pod that installs the plugin on nodes; it is not the identity used when your workloads pull images. Annotating the DaemonSet SA unnecessarily grants every injector a cloud identity it does not need.
     - The plugin reads the **pulling pod's** ServiceAccount from the `CredentialProviderRequest`.
 
 * Short-lived credentials
