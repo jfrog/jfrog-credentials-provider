@@ -64,3 +64,14 @@
 {{- fail (printf "\nERROR: Invalid logLevel %q. Supported values are \"INFO\" or \"DEBUG\"." .Values.logLevel) }}
 {{- end }}
 
+{{/* When aws_auth_method == "assume_external_role", aws_external_role_arn must be set */}}
+{{- range .Values.providerConfig }}
+  {{- if and .aws .aws.enabled (eq (.aws.aws_auth_method | default "") "assume_external_role") }}
+    {{- if not .aws.aws_external_role_arn }}
+      {{- $errorMsg := printf "\nERROR: providerConfig '%s' has aws.aws_auth_method=\"assume_external_role\" but aws.aws_external_role_arn is empty.\n" .name }}
+      {{- $errorMsg = printf "%sSet aws.aws_external_role_arn to the ARN of the role to assume across accounts.\n" $errorMsg }}
+      {{- fail $errorMsg }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+

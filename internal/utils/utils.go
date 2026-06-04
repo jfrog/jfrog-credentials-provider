@@ -91,6 +91,18 @@ type CredentialProviderConfig struct {
 	Providers  []Provider `json:"providers" yaml:"providers"`
 }
 
+type AWSEnvVariables struct {
+	AWSAuthMethod                  string
+	AWSRoleName                    string
+	AWSExternalRoleARN             string
+	AWSExternalRoleDurationSeconds int
+	JFrogOIDCProviderName          string
+	SecretName                     string
+	ResourceServerName             string
+	UserPoolName                   string
+	UserPoolResourceScope          string
+}
+
 func getStructFields(s interface{}) []string {
 	fields := make([]string, 0)
 	t := reflect.TypeOf(s)

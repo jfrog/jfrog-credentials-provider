@@ -26,9 +26,11 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
@@ -42,6 +44,9 @@ const (
 	GRANT_TYPE         = "client_credentials"
 	AWS_OIDC_TOKEN_URL = "https://$user_pool_resource_domain.auth.$region.amazoncognito.com/oauth2/token"
 	METADATA_URL       = "http://169.254.169.254/latest/meta-data/"
+
+	CREDENTIALS_SUCCESS_CODE = "Success"
+	CREDENTIALS_TOKEN_TYPE   = "AWS-HMAC"
 )
 
 type AwsOidcResult struct {
@@ -223,7 +228,7 @@ func GetAWSWebIdentityCredentials(s *service.Service, ctx context.Context,
 	return result.Credentials, nil
 }
 
-func GetAWSSignedRequest(s *service.Service, ctx context.Context, serviceAccountToken, awsRoleName, awsAuthMethod string) (*http.Request, error) {
+func GetAWSSignedRequest(s *service.Service, ctx context.Context, serviceAccountToken string, awsEnvVariables utils.AWSEnvVariables) (*http.Request, error) {
 	s.Logger.Info("running aws assume role auth flow")
 	// get token from metadata service
 	token, err := getToken(s, ctx)
@@ -246,19 +251,30 @@ func GetAWSSignedRequest(s *service.Service, ctx context.Context, serviceAccount
 		}
 	}
 
-	if awsAuthMethod == "assume_role" {
+	switch awsEnvVariables.AWSAuthMethod {
+	case "assume_role":
 		// get temp credentials from metadata service
-		credentials, err = getTempCredentials(s, ctx, token, awsRoleName)
+		credentials, err = getTempCredentials(s, ctx, token, awsEnvVariables.AWSRoleName)
 		if err != nil {
 			return nil, fmt.Errorf("GetTempCredentials returned err %v", err)
 		}
 		s.Logger.Info("GetTempCredentials returned code :" + credentials.Code)
-		if credentials.Code != "Success" {
-			return nil, fmt.Errorf("GetTempCredentials failed with retirned code %s", credentials.Code)
+		if credentials.Code != CREDENTIALS_SUCCESS_CODE {
+			return nil, fmt.Errorf("GetTempCredentials failed with return code %s", credentials.Code)
 		}
-	} else {
+	case "assume_external_role":
+		// get temp credentials by assuming role
+		credentials, err = assumeRoleAndGetCredentials(s, ctx, awsEnvVariables.AWSExternalRoleDurationSeconds, awsEnvVariables.AWSExternalRoleARN, region)
+		if err != nil {
+			return nil, fmt.Errorf("assumeRoleAndGetCredentials returned err %v", err)
+		}
+		s.Logger.Info("assumeRoleAndGetCredentials returned code :" + credentials.Code)
+		if credentials.Code != CREDENTIALS_SUCCESS_CODE {
+			return nil, fmt.Errorf("assumeRoleAndGetCredentials failed with return code %s", credentials.Code)
+		}
+	default:
 		// Get temporary credentials using WebIdentity
-		credentialsWebIdentity, err := GetAWSWebIdentityCredentials(s, ctx, serviceAccountToken, awsRoleName, region)
+		credentialsWebIdentity, err := GetAWSWebIdentityCredentials(s, ctx, serviceAccountToken, awsEnvVariables.AWSRoleName, region)
 		if err != nil {
 			return nil, fmt.Errorf("Error getting web identity credentials: %v", err)
 		}
@@ -326,6 +342,37 @@ func getToken(s *service.Service, ctx context.Context) (string, error) {
 	return string(body), nil
 }
 
+func assumeRoleAndGetCredentials(s *service.Service, ctx context.Context, awsExternalRoleDurationSeconds int, awsRoleArn, region string) (TempCredentials, error) {
+	s.Logger.Info("Handling external assume role flow, role ARN:" + awsRoleArn + ", region:" + region)
+	if region == "" || region == "*" {
+		return TempCredentials{}, fmt.Errorf("assume_external_role requires a valid AWS region; got %q (set aws_region env var)", region)
+	}
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+	if err != nil {
+		s.Logger.Error("failed to get default config from AWS :" + err.Error())
+		return TempCredentials{}, err
+	}
+	stsClient := sts.NewFromConfig(cfg)
+	provider := stscreds.NewAssumeRoleProvider(stsClient, awsRoleArn, func(o *stscreds.AssumeRoleOptions) {
+		o.RoleSessionName = "jfrog-credential-provider-" + utils.RandString(10)
+		o.Duration = time.Duration(awsExternalRoleDurationSeconds) * time.Second
+	})
+	creds, err := provider.Retrieve(ctx)
+	if err != nil {
+		s.Logger.Error("failed to get creds from STS :" + err.Error())
+		return TempCredentials{}, err
+	}
+	return TempCredentials{
+		Code:            CREDENTIALS_SUCCESS_CODE,
+		LastUpdated:     time.Now().UTC().Format(time.RFC3339),
+		TokenType:       CREDENTIALS_TOKEN_TYPE,
+		AccessKeyId:     creds.AccessKeyID,
+		SecretAccessKey: creds.SecretAccessKey,
+		Token:           creds.SessionToken,
+		Expiration:      creds.Expires.UTC().Format(time.RFC3339),
+	}, nil
+
+}
 func getTempCredentials(s *service.Service, ctx context.Context, token string, awsRoleName string) (TempCredentials, error) {
 	s.Logger.Info("TEMP_SESSION_URL :" + TOKEN_URL)
 	// Create a new request

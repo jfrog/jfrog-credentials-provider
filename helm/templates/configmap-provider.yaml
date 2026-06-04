@@ -125,6 +125,23 @@ data:
     }
     ]
     }
+    {{- else if eq .aws.aws_auth_method "assume_external_role" }}
+    {
+      "name": "aws_external_role_arn",
+      "value": {{ .aws.aws_external_role_arn | toJson }}
+    },
+    {{- if .aws.aws_external_role_session_duration_seconds }}
+    {
+      "name": "aws_external_role_session_duration_seconds",
+      "value": {{ .aws.aws_external_role_session_duration_seconds | toString | quote }}
+    },
+    {{- end }}
+    {
+      "name": "secret_ttl_seconds",
+      "value": {{- if .aws.secret_ttl_seconds }}{{ .aws.secret_ttl_seconds | toString | quote }}{{ else }}"14400"{{ end }}
+    }
+    ]
+    }
     {{- end }}
     {{- end }}
 
