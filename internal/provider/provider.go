@@ -24,6 +24,7 @@ import (
 	"jfrog-credential-provider/internal/logger"
 	"jfrog-credential-provider/internal/utils"
 	"log"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -58,7 +59,14 @@ func StartProvider(ctx context.Context, Version string) {
 		secretTTL = defaultSecretTTL
 	}
 
-	client := newProviderHTTPClient(defaultHTTPTimeout)
+	client := &http.Client{
+		Timeout: defaultHTTPTimeout,
+		Transport: &http.Transport{
+			MaxIdleConns:       100,
+			IdleConnTimeout:    10 * time.Second,
+			DisableCompression: true,
+		},
+	}
 	svc := service.NewService(client, *logs)
 	// wait group for autoupdate goroutine
 	var wg sync.WaitGroup
