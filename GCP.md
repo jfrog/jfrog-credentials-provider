@@ -227,17 +227,26 @@ echo "Service Account Unique ID: $SERVICE_ACCOUNT_UNIQUE_ID"
 
 Use the service account created in Step 1 as your worker node service account. Configure your GKE node pool so that nodes run with this service account (e.g. when creating the cluster or node pool, set `--service-account` to `SERVICE_ACCOUNT_EMAIL`). The credential provider will then use the node's metadata server to obtain tokens for this identity.
 
+### 🌐 Configure Node OAuth Access Scope
+
+For Option A, the node identity is also limited by the node pool's OAuth access scopes. The credential provider calls the IAM Credentials `generateIdToken` API after it receives an access token from the metadata server, so the node pool must allow an OAuth scope accepted by that API.
+
+Use `https://www.googleapis.com/auth/cloud-platform` for the node pool access scope. New GKE node pools that use a custom service account and don't manually override scopes usually receive this scope by default, but existing node pools or node pools with manually configured scopes might not. If the scope is missing, GCP can return `ACCESS_TOKEN_SCOPE_INSUFFICIENT` when the provider calls `iamcredentials.googleapis.com`.
+
+> **ℹ️ Note:** GKE access scopes can't be modified on an existing node pool. Create a new node pool with the required scope and migrate workloads to it if your current node pool is missing this scope.
+
 Example:
 ```bash
 CLUSTER_NAME="my-cluster"
 PROJECT_ID="your-gcp-project-id"
 REGION=region
 NODE_POOL_NAME=default-pool
-gcloud container node-pools create $NODE_POOL_NAME$ \
-  --cluster $CLUSTER_NAME$ \
-  --region $REGION \
-  --project $PROJECT_ID$ \
- --service-account $SERVICE_ACCOUNT_EMAIL \
+gcloud container node-pools create "$NODE_POOL_NAME" \
+  --cluster "$CLUSTER_NAME" \
+  --region "$REGION" \
+  --project "$PROJECT_ID" \
+  --service-account "$SERVICE_ACCOUNT_EMAIL" \
+  --scopes="https://www.googleapis.com/auth/cloud-platform" \
   --num-nodes 1
 ```
 ---

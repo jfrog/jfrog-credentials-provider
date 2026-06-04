@@ -2,6 +2,9 @@
 
 All notable changes to this Helm chart will be documented in this file.
 
+## [1.1.2] - 22nd May, 2026
+* Added support for `containerLogging` for plugins logs in container stdout
+
 ## [1.1.1] - 21st April, 2026
 * Added support for Azure China configured using `azure_cloud_name`
 
