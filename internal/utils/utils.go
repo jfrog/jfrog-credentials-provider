@@ -335,14 +335,18 @@ func ValidateJfrogProviderConfig(config Provider, cloudProvider string) error {
 	switch cloudProvider {
 	case CloudProviderAWS:
 		awsAuthMethod := GetEnvVarValue(config.Env, "aws_auth_method")
-		if awsAuthMethod != "cognito_oidc" && awsAuthMethod != "assume_role" {
-			return fmt.Errorf("aws_auth_method can only be set as cognito_oidc or assume_role however the current value is :" + awsAuthMethod)
+		if awsAuthMethod != "cognito_oidc" && awsAuthMethod != "assume_role" && awsAuthMethod != "assume_external_role" {
+			return fmt.Errorf("aws_auth_method can only be set as cognito_oidc, assume_role or assume_external_role however the current value is :%s", awsAuthMethod)
 		}
 
 		if awsAuthMethod == "cognito_oidc" {
 			if GetEnvVarValue(config.Env, "jfrog_oidc_provider_name") == "" || GetEnvVarValue(config.Env, "secret_name") == "" || GetEnvVarValue(config.Env, "user_pool_name") == "" || GetEnvVarValue(config.Env, "resource_server_name") == "" || GetEnvVarValue(config.Env, "user_pool_resource_scope") == "" {
 				return fmt.Errorf("aws_auth_method as cognito_oidc has one or more missing environment variables: jfrog_oidc_provider_name, secret_name, userPoolResourceDomain, userPoolResourceScope")
 			}
+		}
+
+		if awsAuthMethod == "assume_external_role" && GetEnvVarValue(config.Env, "aws_external_role_arn") == "" {
+			return fmt.Errorf("aws_auth_method as assume_external_role requires aws_external_role_arn to be set")
 		}
 
 	case CloudProviderAzure:
