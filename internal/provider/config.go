@@ -22,7 +22,6 @@ import (
 	"jfrog-credential-provider/internal/logger"
 	"jfrog-credential-provider/internal/utils"
 	"log"
-	"net/http"
 	"os"
 	"os/exec"
 	"strings"
@@ -256,14 +255,7 @@ func MergeConfig(dryRun, isYaml bool, providerHome string, providerConfigFileNam
 		jfrogConfigFileName = providerHome + jfrogConfigFile + ".json"
 		finalConfigFileName = providerHome + providerConfigFileName + ".json"
 	}
-	client := &http.Client{
-		Timeout: 60 * time.Second,
-		Transport: &http.Transport{
-			MaxIdleConns:       100,
-			IdleConnTimeout:    10 * time.Second,
-			DisableCompression: true,
-		},
-	}
+	client := newProviderHTTPClient(60 * time.Second)
 	svc := service.NewService(client, *logs)
 	ctx := context.Background()
 	cloudProvider := getCloudProvider(svc, ctx, logs)
