@@ -64,6 +64,10 @@ data:
   {{- if eq $cloudProvider "aws" }}
     "env": [
     {
+      "name": "cloud_provider",
+      "value": "aws"
+    },
+    {
       "name": "aws_auth_method",
       "value": {{ .aws.aws_auth_method | toJson }}
     },
@@ -147,6 +151,8 @@ data:
 
     {{- if eq $cloudProvider "gcp" }}
     env:
+    - name: cloud_provider
+      value: "google"
     - name: artifactory_url
       value: "{{ .artifactoryUrl }}"
     - name: google_service_account_email
@@ -167,6 +173,8 @@ data:
 
     {{- if eq $cloudProvider "azure" }}
     env:
+    - name: cloud_provider
+      value: "azure"
     - name: artifactory_url
       value: "{{ .artifactoryUrl }}"
     - name: azure_app_client_id
