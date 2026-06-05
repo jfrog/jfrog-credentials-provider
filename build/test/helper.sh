@@ -1,6 +1,6 @@
 #!/bin/bash
 # helper.sh - Shared library for JFrog Credential Provider E2E tests
-# Sourced by aws.sh, azure.sh, gcp.sh
+# Sourced by runner.sh
 
 set -euo pipefail
 
@@ -10,6 +10,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 LOG_FILE="/tmp/jfrog-test-${GITHUB_RUN_ID:-local}.log"
+export AWS_PAGER=""
 POD_WAIT_TIMEOUT="${POD_WAIT_TIMEOUT:-300}"
 DAEMONSET_WAIT_TIMEOUT="${DAEMONSET_WAIT_TIMEOUT:-300}"
 NODE_GROUP_WAIT_TIMEOUT="${NODE_GROUP_WAIT_TIMEOUT:-600}"
@@ -169,10 +170,16 @@ create_node_group_azure() {
             return 1
         fi
 
-        if ! az vmss identity assign \
-            -g "${mc_rg}" \
-            -n "${vmss_name}" \
-            --identities "${identity_id}"; then
+        local sub_id
+        sub_id=$(az account show --query "id" -o tsv)
+
+        local vmss_url="https://management.azure.com/subscriptions/${sub_id}/resourceGroups/${mc_rg}/providers/Microsoft.Compute/virtualMachineScaleSets/${vmss_name}?api-version=2023-09-01"
+        log_info "PATCH ${vmss_url}"
+
+        if ! az rest --method PATCH \
+            --url "${vmss_url}" \
+            --body "{\"identity\":{\"type\":\"UserAssigned\",\"userAssignedIdentities\":{\"${identity_id}\":{}}}}" \
+            -o none; then
             log_error "Failed to assign identity to Azure node pool ${ng_name}"
             return 1
         fi
@@ -292,16 +299,17 @@ generate_values() {
 # Helm lifecycle
 # ---------------------------------------------------------------------------
 
-# helm_install RELEASE_NAME NAMESPACE VALUES_FILE CHART_VERSION
+# helm_install RELEASE_NAME NAMESPACE VALUES_FILE [CHART_REF]
 helm_install() {
     local release_name="$1"
     local namespace="$2"
     local values_file="$3"
+    local chart_ref="${4:-${REPO_ROOT}/helm}"
 
-    log_step "Helm installing ${release_name} in namespace ${namespace})"
+    log_step "Helm installing ${release_name} in namespace ${namespace} (chart: ${chart_ref})"
 
-
-    if ! helm install "${release_name}" "${REPO_ROOT}/helm" \
+    # shellcheck disable=SC2086
+    if ! helm install "${release_name}" ${chart_ref} \
         --namespace "${namespace}" \
         --create-namespace \
         -f "${values_file}" \
@@ -333,6 +341,34 @@ helm_uninstall() {
     log_info "Helm uninstall succeeded for ${release_name}"
 }
 
+# helm_upgrade RELEASE_NAME NAMESPACE VALUES_FILE [CHART_REF]
+helm_upgrade() {
+    local release_name="$1"
+    local namespace="$2"
+    local values_file="$3"
+    local chart_ref="${4:-${REPO_ROOT}/helm}"
+
+    log_step "Helm upgrading ${release_name} in namespace ${namespace} (chart: ${chart_ref})"
+
+    # shellcheck disable=SC2086
+    if ! helm upgrade "${release_name}" ${chart_ref} \
+        --namespace "${namespace}" \
+        -f "${values_file}" \
+        --wait \
+        --timeout "${DAEMONSET_WAIT_TIMEOUT}s"; then
+        log_error "Helm upgrade failed for ${release_name}"
+        log_info "Dumping pod status in namespace ${namespace}:"
+        kubectl get pods -n "${namespace}" -o wide 2>&1 | tee -a "${LOG_FILE}" || true
+        log_info "Dumping events in namespace ${namespace}:"
+        kubectl get events -n "${namespace}" --sort-by='.lastTimestamp' 2>&1 | tee -a "${LOG_FILE}" || true
+        return 1
+    fi
+
+    log_info "Helm upgrade succeeded for ${release_name}"
+    log_info "Pods in namespace ${namespace}:"
+    kubectl get pods -n "${namespace}" -o wide 2>&1 | tee -a "${LOG_FILE}"
+}
+
 # ---------------------------------------------------------------------------
 # Pod verification
 # ---------------------------------------------------------------------------
@@ -348,7 +384,7 @@ deploy_test_pod() {
     local projected_token_enabled="$6"
 
     if [[ "${projected_token_enabled}" == "true" ]]; then
-        localservice_account_name="projected-sa"
+        local service_account_name="projected-sa"
         kubectl create serviceaccount ${service_account_name} -n ${namespace}
         kubectl annotate serviceaccount ${service_account_name} -n ${namespace} "eks.amazonaws.com/role-arn=${node_role_arn}"
     else

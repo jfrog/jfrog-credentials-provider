@@ -53,7 +53,7 @@ jobs:
         run: |
           source build/test/env
           export DOWNLOAD_URL="${{ inputs.download_url }}"
-          bash build/test/aws.sh
+          bash build/test/runner.sh --parallel build/test/cases/aws-*.yaml
 
   test-azure:
     name: Azure E2E Tests
@@ -78,13 +78,12 @@ jobs:
         env:
           AZURE_APP_CLIENT_ID: ${{ secrets.AZURE_HELM_TEST_APP_CLIENT_ID }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_APP_TENANT_ID }}
-          # user assigned identity that has access to the app registration
           AZURE_NODEPOOL_CLIENT_ID: ${{ secrets.AZURE_HELM_TEST_NODEPOOL_CLIENT_ID }}
         run: |
           source build/test/env
           export DOWNLOAD_URL="${{ inputs.download_url }}"
           export JFROG_OIDC_PROVIDER_NAME="${AZURE_JFROG_OIDC_PROVIDER_NAME}"
-          bash build/test/azure.sh
+          bash build/test/runner.sh build/test/cases/azure-*.yaml
 
   test-gcp:
     name: GCP E2E Tests
@@ -114,5 +113,5 @@ jobs:
           source build/test/env
           export DOWNLOAD_URL="${{ inputs.download_url }}"
           export JFROG_OIDC_PROVIDER_NAME="${GCP_JFROG_OIDC_PROVIDER_NAME}"
-          bash build/test/gcp.sh
+          bash build/test/runner.sh build/test/cases/gcp-*.yaml
 

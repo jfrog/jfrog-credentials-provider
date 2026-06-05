@@ -1,0 +1,22 @@
+name: azure-oidc
+provider: azure
+
+nodeGroup:
+  vmSize: Standard_D2ds_v4
+  nodeCount: 1
+  identityClientId: "${AZURE_NODEPOOL_CLIENT_ID}"
+
+steps:
+  - action: install
+    helm:
+      baseValues: examples/azure-values.yaml
+      overrides:
+        - '.providerConfig[0].artifactoryUrl = "${ARTIFACTORY_URL}"'
+        - '.providerConfig[0].matchImages[0] = "${MATCH_IMAGES}"'
+        - '.providerConfig[0].azure.azure_app_client_id = "${AZURE_APP_CLIENT_ID}"'
+        - '.providerConfig[0].azure.azure_tenant_id = "${AZURE_TENANT_ID}"'
+        - '.providerConfig[0].azure.azure_nodepool_client_id = "${AZURE_NODEPOOL_CLIENT_ID}"'
+        - '.providerConfig[0].azure.jfrog_oidc_provider_name = "${AZURE_JFROG_OIDC_PROVIDER_NAME}"'
+    verify:
+      image: "${TEST_IMAGE}"
+      projectedToken: false

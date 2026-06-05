@@ -1,0 +1,19 @@
+name: aws-assume-role
+provider: aws
+
+nodeGroup:
+  instanceType: t3.medium
+  amiType: AL2023_x86_64_STANDARD
+
+steps:
+  - action: install
+    helm:
+      baseValues: examples/aws-values.yaml
+      overrides:
+        - '.providerConfig[0].artifactoryUrl = "${ARTIFACTORY_URL}"'
+        - '.providerConfig[0].matchImages[0] = "${MATCH_IMAGES}"'
+        - '.providerConfig[0].aws.aws_role_name = "${AWS_ROLE_NAME}"'
+        - '.downloadUrl = "${DOWNLOAD_URL}"'
+    verify:
+      image: "${TEST_IMAGE}"
+      projectedToken: false

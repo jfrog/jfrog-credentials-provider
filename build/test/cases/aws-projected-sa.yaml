@@ -1,0 +1,23 @@
+name: aws-projected-sa
+provider: aws
+
+nodeGroup:
+  instanceType: t4g.medium
+  amiType: AL2023_ARM_64_STANDARD
+
+steps:
+  - action: install
+    helm:
+      baseValues: examples/aws-projected-sa-values.yaml
+      overrides:
+        - '.providerConfig[0].artifactoryUrl = "${ARTIFACTORY_URL}"'
+        - '.providerConfig[0].matchImages[0] = "${MATCH_IMAGES}"'
+        - '.providerConfig[0].aws.enabled = true'
+        - '.providerConfig[0].aws.aws_auth_method = "assume_role"'
+        - '.providerConfig[0].aws.aws_role_name = "${AWS_ROLE_NAME}"'
+        - '.providerConfig[0].tokenAttributes.enabled = true'
+        - '.downloadUrl = "${DOWNLOAD_URL}"'
+        - '.rbac.create = true'
+    verify:
+      image: "${TEST_IMAGE}"
+      projectedToken: true

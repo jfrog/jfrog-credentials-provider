@@ -1,16 +1,11 @@
-# build/test/env - Non-sensitive test configuration
+# build/test/env - Test configuration
 # Source this file before running test scripts.
 #
-# Required GitHub Actions secrets (not stored here):
-#   AWS_ROLE_TO_ASSUME         - IAM role ARN for GitHub Actions OIDC auth to AWS
-#   AWS_NODE_ROLE_ARN          - IAM role ARN for EKS node groups
-#   AWS_SUBNET_IDS             - Space-separated subnet IDs for EKS node groups
-#   AZURE_APP_CLIENT_ID        - Azure AD app registration client ID
-#   AZURE_TENANT_ID            - Azure AD tenant ID
-#   AZURE_SUBSCRIPTION_ID      - Azure subscription ID
-#   AZURE_NODEPOOL_CLIENT_ID   - Managed identity client ID for AKS node pool
-#   GCP_WORKLOAD_IDENTITY_PROVIDER - Workload Identity Federation provider for GitHub Actions OIDC auth to GCP
-#   GCP_SERVICE_ACCOUNT_EMAIL  - GCP service account email for node pools and GH Actions auth
+# Usage:
+#   source build/test/env && bash build/test/runner.sh --provider aws
+#
+# In CI, secrets are injected via GitHub Actions environment variables.
+# For local runs, uncomment and fill in the values marked below.
 
 # ---------------------------------------------------------------------------
 # Shared
@@ -19,12 +14,20 @@ export ARTIFACTORY_URL="partnership.jfrog.io"
 export MATCH_IMAGES="partnership*.jfrog.io"
 export TEST_IMAGE="partnership-docker-remote-test.jfrog.io/busybox:latest"
 
+# >>> Uncomment for local runs <<<
+# export DOWNLOAD_URL="https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/1.0.0/jfrog-credential-provider-linux"
+
 # ---------------------------------------------------------------------------
 # AWS
 # ---------------------------------------------------------------------------
 export EKS_CLUSTER_NAME="aws-operator-jfrog"
 export AWS_REGION="ap-northeast-3"
 export AWS_ROLE_NAME="OperatorSelfManagedWorkerNodeRole"
+
+# >>> Uncomment for local runs <<<
+# export AWS_NODE_ROLE_ARN=""          # IAM role ARN attached to EKS node groups
+# export AWS_SUBNET_IDS=""             # Space-separated subnet IDs for EKS node groups
+subnet-048aa0af029b4ee79 subnet-0ed46afcf510b0f80 subnet-0dde3d3edf430d24b
 
 # ---------------------------------------------------------------------------
 # Azure
@@ -35,6 +38,13 @@ export AZURE_JFROG_OIDC_PROVIDER_NAME="azure-aks-oidc-provider"
 export AZURE_APP_AUDIENCE="api://AzureADTokenExchange"
 export AZURE_IDENTITY_NAME="kep-identity"
 
+# >>> Uncomment for local runs <<<
+export AZURE_APP_CLIENT_ID="23522f4a-1dc9-4cb7-9ee9-4834016d24ca"
+export AZURE_TENANT_ID="e5ae2200-e5ec-434f-a838-da463ee17229"
+export AZURE_NODEPOOL_CLIENT_ID="6b3411c0-4c4f-49a6-9f87-88851e4d51c4"
+export JFROG_PROJECTED_OIDC_PROVIDER_NAME="azure-provider2"
+# export JFROG_OIDC_PROVIDER_NAME="${AZURE_JFROG_OIDC_PROVIDER_NAME}"  # Set by CI per-provider; for Azure local runs use this line
+
 # ---------------------------------------------------------------------------
 # GCP
 # ---------------------------------------------------------------------------
@@ -44,3 +54,7 @@ export GCP_ZONE="asia-south1-a"
 export GCP_MACHINE_TYPE="e2-medium"
 export GCP_OIDC_AUDIENCE="jfrog-dev"
 export GCP_JFROG_OIDC_PROVIDER_NAME="gcp-gke-oidc-provider"
+
+# >>> Uncomment for local runs <<<
+# export GCP_SERVICE_ACCOUNT_EMAIL=""  # GCP service account email for node pools and workload identity
+# export JFROG_OIDC_PROVIDER_NAME="${GCP_JFROG_OIDC_PROVIDER_NAME}"  # Set by CI per-provider; for GCP local runs use this line

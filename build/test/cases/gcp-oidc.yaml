@@ -1,0 +1,22 @@
+name: gcp-oidc
+provider: gcp
+
+nodeGroup:
+  machineType: e2-medium
+  numNodes: 1
+  serviceAccountEmail: "${GCP_SERVICE_ACCOUNT_EMAIL}"
+
+steps:
+  - action: install
+    helm:
+      baseValues: examples/gcp-values.yaml
+      overrides:
+        - '.providerConfig[0].artifactoryUrl = "${ARTIFACTORY_URL}"'
+        - '.providerConfig[0].matchImages[0] = "${MATCH_IMAGES}"'
+        - '.providerConfig[0].gcp.google_service_account_email = "${GCP_SERVICE_ACCOUNT_EMAIL}"'
+        - '.providerConfig[0].gcp.jfrog_oidc_audience = "${GCP_OIDC_AUDIENCE}"'
+        - '.providerConfig[0].gcp.jfrog_oidc_provider_name = "${JFROG_OIDC_PROVIDER_NAME}"'
+        - '.downloadUrl = "${DOWNLOAD_URL}"'
+    verify:
+      image: "${TEST_IMAGE}"
+      projectedToken: false
