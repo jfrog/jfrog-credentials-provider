@@ -164,6 +164,8 @@ func CreateProviderConfigFromEnv(isYaml bool, providerHome string, providerConfi
 	addEnvVar("aws_auth_method", os.Getenv("AWS_AUTH_METHOD"))
 	addEnvVar("aws_region", os.Getenv("AWS_REGION"))
 	addEnvVar("aws_role_name", os.Getenv("AWS_ROLE_NAME"))
+	addEnvVar("aws_external_role_arn", os.Getenv("AWS_EXTERNAL_ROLE_ARN"))
+	addEnvVar("aws_external_role_session_duration_seconds", os.Getenv("AWS_EXTERNAL_ROLE_SESSION_DURATION_SECONDS"))
 	addEnvVar("secret_name", os.Getenv("SECRET_NAME"))
 	addEnvVar("secret_ttl_seconds", os.Getenv("SECRET_TTL_SECONDS"))
 	addEnvVar("jfrog_oidc_provider_name", os.Getenv("JFROG_OIDC_PROVIDER_NAME"))
@@ -190,6 +192,9 @@ func CreateProviderConfigFromEnv(isYaml bool, providerHome string, providerConfi
 		if iamRoleArn == "" {
 			logs.Exit("if authentication_method is 'assume_role', then 'IAM_ROLE_ARN' must be provided and be a non-empty string", 1)
 		}
+	}
+	if authMethod == "assume_external_role" && os.Getenv("AWS_EXTERNAL_ROLE_ARN") == "" {
+		logs.Exit("if authentication_method is 'assume_external_role', then 'AWS_EXTERNAL_ROLE_ARN' must be provided and be a non-empty string", 1)
 	}
 	if authMethod == "cognito_oidc" {
 		requiredVars := map[string]string{

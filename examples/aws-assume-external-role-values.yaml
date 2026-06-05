@@ -1,0 +1,30 @@
+providerConfig:
+  - name: jfrog-credentials-provider
+    artifactoryUrl: <artifactory-url>
+    matchImages:
+      - "*.<test.your-org.domain.io>"
+    defaultCacheDuration: 5h
+    aws:
+      enabled: true
+      aws_auth_method: "assume_external_role"
+      # The node's IAM role directly assumes aws_external_role_arn (typically in
+      # another AWS account) via STS to obtain the credentials used to fetch the
+      # Artifactory token.
+      aws_external_role_arn: "<target-role-arn-in-other-account>"
+      aws_external_role_session_duration_seconds: 3600
+
+
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/arch
+              operator: In
+              values:
+                - amd64
+                - arm64
+            - key: credentialsProviderEnabled
+              operator: In
+              values:
+                - "true"
