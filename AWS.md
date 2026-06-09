@@ -129,12 +129,13 @@ The setup process consists of four main steps:
 
 ## Step 1: 🔐 AWS IAM Configuration
 
-The JFrog Kubelet Credential Provider supports two authentication methods for AWS EKS. You must choose one:
+The JFrog Kubelet Credential Provider supports three authentication methods for AWS EKS. You must choose one:
 
 - **IAM Role Assumption** - Uses EC2 instance IAM roles or service account tokens for authentication
+- **Assume External Role** - Assumes a shared external IAM role (typically cross-account) before authenticating, so a single role is registered in Artifactory instead of one per cluster
 - **Cognito OIDC** - Uses OIDC tokens from AWS Cognito for authentication
 
-> **⚠️ Important**: You must select either **IAM Role Assumption** OR **Cognito OIDC** as your authentication method. They cannot be used simultaneously in the same deployment.
+> **⚠️ Important**: You must select **IAM Role Assumption**, **Assume External Role**, OR **Cognito OIDC** as your authentication method. They cannot be used simultaneously in the same deployment.
 
 ---
 
@@ -363,7 +364,91 @@ For more information about IRSA, see the [AWS EKS IRSA documentation](https://do
 
 ---
 
-### Option B: 🔑 Cognito OIDC
+### Option B: 🔗 Assume External Role
+
+This method assumes a shared external IAM role (typically in a central account) before authenticating to Artifactory. Instead of registering every cluster's EC2 instance role in Artifactory, you register a single external role once, and each cluster's node role assumes into it. This scales cleanly across a large fleet of EKS clusters.
+
+**Flow Overview:**
+
+1. The credential provider obtains AWS credentials from the EKS worker node's IAM role (via the EC2 instance metadata service)
+
+2. The provider uses those credentials to call AWS STS `AssumeRole` on the external role ARN, obtaining temporary credentials for the external role
+
+3. The provider uses the temporary credentials to sign an AWS STS GetCallerIdentity request locally
+
+4. The provider exchanges the signed request with Artifactory, which validates the signature and the external IAM role ARN, then returns a short-lived registry access token
+
+5. The kubelet uses the registry token to authenticate and pull the container image
+
+##### Create the External Role
+
+Create the external (target) role that the credential provider will assume. This is the single role you register in Artifactory.
+
+```bash
+# Set variables
+EXTERNAL_ROLE_NAME="jfrog-credentials-provider-external-role"
+NODE_ROLE_ARN="arn:aws:iam::222222222222:role/your-eks-node-role"  # The node role that will assume this role
+
+# Create trust policy allowing the node role(s) to assume this role
+cat > external-trust-policy.json <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "$NODE_ROLE_ARN"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+EOF
+
+# Create the external role (run in the account that will own the shared role)
+EXTERNAL_ROLE_ARN=$(aws iam create-role \
+  --role-name "$EXTERNAL_ROLE_NAME" \
+  --assume-role-policy-document file://external-trust-policy.json \
+  --query 'Role.Arn' \
+  --output text)
+
+echo "External Role ARN: $EXTERNAL_ROLE_ARN"
+
+# Clean up
+rm external-trust-policy.json
+```
+
+> **💾 Important:** Save the `EXTERNAL_ROLE_ARN` - this is your `aws_external_role_arn` (the role that gets registered in Artifactory).
+
+##### Grant the Node Role Permission to Assume the External Role
+
+The EKS worker node's IAM role must be allowed to assume the external role:
+
+```bash
+NODE_ROLE_NAME="your-eks-node-role"
+
+aws iam put-role-policy \
+  --role-name "$NODE_ROLE_NAME" \
+  --policy-name "jfrog-assume-external-role-policy" \
+  --policy-document '{
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": "sts:AssumeRole",
+        "Resource": "'"$EXTERNAL_ROLE_ARN"'"
+      }
+    ]
+  }'
+```
+
+> **📝 Note:** When the external role lives in a different AWS account, this is a cross-account assume. Ensure both sides are configured: the external role's trust policy must allow the node role's account/role, and the node role must have `sts:AssumeRole` on the external role ARN.
+
+The credential provider assumes the external role for a configurable session duration (`aws_external_role_session_duration_seconds`, default `3600` seconds, max `43200` seconds).
+
+---
+
+### Option C: 🔑 Cognito OIDC
 
 This method uses AWS Cognito for OIDC authentication. It provides a standards-based OIDC flow and is recommended for organizations that want to use OIDC throughout their infrastructure.
 
@@ -541,9 +626,11 @@ ARTIFACTORY_ADMIN_TOKEN="your-admin-access-token"
 ARTIFACTORY_USER="aws-eks-user"  # User that will be mapped to AWS credentials/OIDC tokens
 ```
 
-### For IAM Role Assumption Method and Projected Token Method
+### For IAM Role Assumption, Assume External Role, and Projected Token Methods
 
-If using IAM Role Assumption, you need to map the IAM role to an Artifactory user. This is done through Artifactory's API.
+If using IAM Role Assumption or Assume External Role, you need to map the IAM role to an Artifactory user. This is done through Artifactory's API.
+
+> **🔗 Assume External Role:** Register the **external role ARN** (`aws_external_role_arn`), not the per-cluster node role. Because every cluster assumes into the same external role, this single binding covers your whole fleet. Set `ROLE_ARN` to the external role ARN in the commands below.
 
 #### Delete Existing Binding (if any)
 
@@ -684,6 +771,17 @@ Update the values file at `./examples/aws-values.yaml` with your configuration v
 
 Update the values file at `./examples/aws-projected-sa-values.yaml` with your configuration values.
 
+#### For Assume External Role Method
+
+| Configuration Value | Description | Example |
+|---------------------|-------------|---------|
+| `aws_auth_method` | Authentication method | `assume_external_role` |
+| `aws_external_role_arn` | ARN of the external role to assume (registered in Artifactory) | `arn:aws:iam::111111111111:role/jfrog-credentials-provider-external-role` |
+| `aws_external_role_session_duration_seconds` | Assumed-role session duration in seconds (optional, default `3600`, max `43200`) | `3600` |
+| `artifactoryUrl` | Your JFrog Artifactory URL | `your-instance.jfrog.io` |
+
+Update the values file at `./examples/aws-assume-external-role-values.yaml` with your configuration values.
+
 #### For Cognito OIDC Method
 
 | Configuration Value | Description | Example |
@@ -730,6 +828,17 @@ helm upgrade --install secret-provider jfrog/jfrog-credential-provider \
   --namespace jfrog \
   --create-namespace \
   -f ./examples/aws-projected-sa-values.yaml
+
+```
+
+OR
+
+```bash
+# Install the credential provider (Assume External Role)
+helm upgrade --install secret-provider jfrog/jfrog-credential-provider \
+  --namespace jfrog \
+  --create-namespace \
+  -f ./examples/aws-assume-external-role-values.yaml
 
 ```
 
