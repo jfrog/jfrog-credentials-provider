@@ -31,8 +31,9 @@ data:
       cacheType: ServiceAccount
       requireServiceAccount: {{ .tokenAttributes.requireServiceAccount | default true }}
       requiredServiceAccountAnnotationKeys:
-        - azure.workload.identity/client-id
         - JFrogExchange
+      optionalServiceAccountAnnotationKeys:
+        - azure.workload.identity/client-id
     {{- else if and .tokenAttributes .tokenAttributes.enabled (eq $cloudProvider "gcp") }}
     tokenAttributes:
       {{- if .gcp.jfrog_oidc_audience }}

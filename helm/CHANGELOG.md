@@ -2,6 +2,12 @@
 
 All notable changes to this Helm chart will be documented in this file.
 
+## [1.4.0] - 16th June, 2026
+* Added support for `imds_direct` auth flow for Azure to get rid of the federated credentials limit
+* Updated projected token flow for Azure to work without app registration
+* Added `azure.jfrog_token_audience` to control the audience requested during the Artifactory OIDC token exchange (defaults to `*@*`)
+* The Azure Artifactory token-exchange audience now defaults to `*@*` instead of the Azure app client id. If your Artifactory OIDC identity mapping uses a non-wildcard `token_spec.audience`, set `azure.jfrog_token_audience` to that value.
+
 ## [1.3.0] - 11th June, 2026
 * Native OpenShift Support (`platform: openshift`): Added built-in support for AWS (`ROSA`) and Azure (`ARO`) that automatically merges your custom settings into the platform’s existing cloud credential files (`ecr-credential-provider.yaml` or `acr-credential-provider.yaml`).
 * Smart Binary Installation Workaround: Implemented an automated installer that safely saves the plugin binary into a writable folder (`/var/lib/...`) and tricks OpenShift's locked-down, read-only system into seeing it exactly where the node expects it (`/usr/libexec/...`).
