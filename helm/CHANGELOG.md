@@ -2,6 +2,10 @@
 
 All notable changes to this Helm chart will be documented in this file.
 
+## [1.3.0] = 10th June, 2026
+* Added support for `imds_direct` auth flow for Azure to get ride of federated credentials limit
+* Updated projected token flow for Azure to remove app registeration
+
 ## [1.2.0] - 5th June, 2026
 * Added a fix to honor proxy env vars for provider HTTP clients
 * Add assume_external_role auth method for cross-account IAM role assumption

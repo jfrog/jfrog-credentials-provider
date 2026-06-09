@@ -117,9 +117,15 @@ providerConfig:
     # Azure configuration
     azure:
       enabled: false
+      # If you are installing this for the first time, set azure_auth_method to "imds_direct" for non-projected token appraoch
+      # More information: https://github.com/jfrog/jfrog-credentials-provider/blob/main/AZURE.md#imds-direct-authentication
+      # azure_auth_method: "imds_direct"
+      # If you are using a custom app uri, set azure_app_uri to the custom app uri, default is api://<azure_app_client_id> if not set
+      # azure_app_uri: "api://<azure_app_client_id>"
       azure_app_client_id: ""
       # azure_cloud_name: "AzureCloud"
       azure_tenant_id: ""
+      # audience must match artifactory's oidc configuration
       azure_app_audience: ""
       jfrog_oidc_provider_name: ""
       azure_nodepool_client_id: ""
