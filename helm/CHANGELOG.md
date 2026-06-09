@@ -2,6 +2,10 @@
 
 All notable changes to this Helm chart will be documented in this file.
 
+## [1.2.0] - 5th June, 2026
+* Added a fix to honor proxy env vars for provider HTTP clients
+* Add assume_external_role auth method for cross-account IAM role assumption
+
 ## [1.1.2] - 22nd May, 2026
 * Added support for `containerLogging` for plugins logs in container stdout
 
