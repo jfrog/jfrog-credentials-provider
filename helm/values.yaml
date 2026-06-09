@@ -3,7 +3,7 @@
 
 # Download URL for the credential provider binary
 # The chart will automatically append the architecture suffix (-amd64 or -arm64)
-downloadUrl: "https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/1.1.2/jfrog-credential-provider-linux"
+downloadUrl: "https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/1.2.0/jfrog-credential-provider-linux"
 
 # Affinity rules for pod scheduling
 affinity: {}
@@ -104,9 +104,6 @@ providerConfig:
       # For OIDC method, additional variables can be added here
       # aws_cognito_user_pool_secret_name: ""
       # aws_cognito_user_pool_name: ""
-      # aws_cognito_user_pool_id: ""
-      # aws_cognito_user_pool_client_id: ""
-      # aws_cognito_user_pool_domain_name: ""
       # aws_cognito_resource_server_name: ""
       # aws_cognito_user_pool_resource_scope: ""
       # jfrog_oidc_provider_name: ""
