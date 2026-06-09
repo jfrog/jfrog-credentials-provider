@@ -45,8 +45,9 @@ data:
       cacheType: ServiceAccount
       requireServiceAccount: true
       requiredServiceAccountAnnotationKeys:
-        - azure.workload.identity/client-id
         - JFrogExchange
+      optionalServiceAccountAnnotationKeys:
+        - azure.workload.identity/client-id
     {{- else if and .tokenAttributes .tokenAttributes.enabled (eq $cloudProvider "gcp") }}
     tokenAttributes:
       {{- if .gcp.jfrog_oidc_audience }}
@@ -177,6 +178,10 @@ data:
       value: "azure"
     - name: artifactory_url
       value: "{{ .artifactoryUrl }}"
+    {{- if .azure.azure_auth_method }}
+    - name: azure_auth_method
+      value: "{{ .azure.azure_auth_method }}"
+    {{- end }}
     - name: azure_app_client_id
       value: "{{ .azure.azure_app_client_id }}"
     {{- if .azure.azure_cloud_name }}
@@ -189,6 +194,10 @@ data:
       value: "{{ .azure.azure_nodepool_client_id }}"
     - name: azure_app_audience
       value: "{{ .azure.azure_app_audience }}"
+    {{- if .azure.azure_app_uri }}
+    - name: azure_app_uri
+      value: "{{ .azure.azure_app_uri }}"
+    {{- end }}
     - name: jfrog_oidc_provider_name
       value: "{{ .azure.jfrog_oidc_provider_name }}"
     - name: disable_provider_autoupdate

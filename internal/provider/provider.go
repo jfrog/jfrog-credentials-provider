@@ -261,41 +261,66 @@ func handleAzureAuth(svc *service.Service, ctx context.Context, logs *logger.Log
 
 	var token string
 	var err error
+	var artifactoryAudience string
+
+	azureAuthMethod := os.Getenv("azure_auth_method")
+	if azureAuthMethod == "" {
+		logs.Info("azureAuthMethod not set, will default to legacy federated credentials or projected tokens if tokenAttributes is enabled")
+	} else if azureAuthMethod == "imds_direct" {
+		logs.Info("azureAuthMethod set to imds_direct, will use IMDS to get app's access token")
+	} else {
+		logs.Exit("wrong azure_auth_method value :"+azureAuthMethod, 1)
+	}
 
 	// get required env variables
 	azureAppClientId := utils.GetEnvs(logs, "azure_app_client_id", "")
 	azureAppCloudName := utils.GetEnvs(logs, "azure_cloud_name", "AzureCloud")
 	azureAppTenantId := utils.GetEnvs(logs, "azure_tenant_id", "")
 	azureAppAudience := utils.GetEnvs(logs, "azure_app_audience", "")
+	azureAppURI := utils.GetEnvs(logs, "azure_app_uri", "api://"+azureAppClientId)
 	azureNodepoolClientId := utils.GetEnvs(logs, "azure_nodepool_client_id", "")
 	jfrogOidcProviderName := utils.GetEnvs(logs, "jfrog_oidc_provider_name", "")
 
-	if request.ServiceAccountAnnotations["JFrogExchange"] != "true" {
-		if azureAppClientId == "" || azureAppTenantId == "" || azureAppAudience == "" || azureNodepoolClientId == "" || jfrogOidcProviderName == "" {
-			logs.Exit("ERROR in JFrog Credentials provider, environment variables missing: azure_app_client_id, azure_tenant_id, azure_app_audience, azure_nodepool_client_id, jfrog_oidc_provider_name", 1)
+	if azureAuthMethod == "imds_direct" && request.ServiceAccountAnnotations["JFrogExchange"] != "true" {
+		if azureAppClientId == "" || azureNodepoolClientId == "" || azureAppURI == "" || jfrogOidcProviderName == "" {
+			logs.Exit("ERROR in JFrog Credentials provider, environment variables missing: azure_app_client_id, azure_nodepool_client_id, azureAppURI, jfrog_oidc_provider_name", 1)
+		}
+		logs.Info(fmt.Sprintf("getting envs - azureAppClientId: %s, azureNodepoolClientId: %s, azureAppURI: %s, jfrogOidcProviderName: %s",
+			azureAppClientId, azureNodepoolClientId, azureAppURI, jfrogOidcProviderName))
+		logs.Info("Service Account Token obtained using Node Managed Identity (IMDS direct app access token)")
+		token, err = handlers.GetAzureClusterIdentity(svc, ctx, azureAppURI, azureNodepoolClientId)
+		if err != nil {
+			logs.Exit("ERROR in GetAzureClusterIdentity :"+err.Error(), 1)
+		}
+		artifactoryAudience = azureAppClientId
+	} else if request.ServiceAccountAnnotations["JFrogExchange"] != "true" {
+		if azureAppClientId == "" || azureAppTenantId == "" || azureNodepoolClientId == "" || azureAppAudience == "" || jfrogOidcProviderName == "" {
+			logs.Exit("ERROR in JFrog Credentials provider, environment variables missing: azure_app_client_id, azure_tenant_id, azure_nodepool_client_id, azureAppAudience, jfrog_oidc_provider_name", 1)
 		} else {
-			logs.Info(fmt.Sprintf("getting envs - azureAppClientId: %s, azureAppCloudName: %s, azureNodepoolClientId: %s, azureAppTenantId: %s, azureAppAudience: %s, jfrogOidcProviderName: %s",
-				azureAppClientId, azureAppCloudName, azureNodepoolClientId, azureAppTenantId, azureAppAudience, jfrogOidcProviderName))
+			logs.Info(fmt.Sprintf("getting envs - azureAppClientId: %s, azureAppCloudName: %s, azureNodepoolClientId: %s, azureAppAudience: %s, azureAppTenantId: %s, jfrogOidcProviderName: %s",
+				azureAppClientId, azureAppCloudName, azureNodepoolClientId, azureAppAudience, azureAppTenantId, jfrogOidcProviderName))
 		}
 		logs.Info("Service Account Token obtained using Node Identity (VM Service Account)")
 		// Get Azure OIDC token
 		token, err = handlers.GetAzureOIDCToken(svc, ctx, azureAppTenantId, azureAppClientId, azureNodepoolClientId, azureAppAudience, azureAppCloudName)
+		artifactoryAudience = azureAppClientId
 	} else {
-		if azureAppClientId == "" || azureAppAudience == "" || jfrogOidcProviderName == "" {
-			logs.Exit("ERROR in JFrog Credentials provider, environment variables missing: azure_app_client_id, azure_app_audience, jfrog_oidc_provider_name", 1)
+		if azureAppAudience == "" || jfrogOidcProviderName == "" {
+			logs.Exit("ERROR in JFrog Credentials provider, environment variables missing: azureAppAudience, jfrog_oidc_provider_name", 1)
 		} else {
-			logs.Info(fmt.Sprintf("getting envs - azureAppClientId: %s, azureAppAudience: %s, jfrogOidcProviderName: %s",
-				azureAppClientId, azureAppAudience, jfrogOidcProviderName))
+			logs.Info(fmt.Sprintf("getting envs - azureAppAudience: %s, jfrogOidcProviderName: %s",
+				azureAppAudience, jfrogOidcProviderName))
 		}
 		logs.Info("Service Account Token obtained using Pod Identity (Kubernetes Workload Identity)")
 		token = request.ServiceAccountToken
+		artifactoryAudience = azureAppAudience
 	}
 	if err != nil {
 		logs.Exit("ERROR in GetAzureOIDCToken :"+err.Error(), 1)
 	}
 
 	// Exchange Azure OIDC token with JFrog Artifactory token
-	rtUsername, rtToken, err := handlers.ExchangeOidcArtifactoryToken(svc, ctx, token, artifactoryUrl, jfrogOidcProviderName, azureAppClientId)
+	rtUsername, rtToken, err := handlers.ExchangeOidcArtifactoryToken(svc, ctx, token, artifactoryUrl, jfrogOidcProviderName, artifactoryAudience)
 	if err != nil {
 		logs.Exit("ERROR in JFrog Credentials provider, error in createArtifactoryToken :"+err.Error(), 1)
 	}

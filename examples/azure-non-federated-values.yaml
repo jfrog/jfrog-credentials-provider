@@ -1,18 +1,19 @@
 providerConfig:
   - name: jfrog-credentials-provider
-    artifactoryUrl: "<artifactory-url>"
+    artifactoryUrl: <artifactory-url>
     matchImages:
       - "*.<test.your-org.domain.io>"
     defaultCacheDuration: 5h
-    tokenAttributes:
-      enabled: true
     azure:
       enabled: true
-      azure_app_audience: "api://AzureADTokenExchange"
+      # imds_direct fetches an app-scoped access token from Azure IMDS.
+      azure_auth_method: "imds_direct"
+      azure_app_client_id: "<azure-app-client-id>"
+      # azure_cloud_name: "AzureCloud"
       jfrog_oidc_provider_name: "<jfrog-oidc-provider-name>"
+      azure_nodepool_client_id: "<azure-nodepool-client-id>"
+      # azure_app_uri: "api://<azure-app-client-id>"
 
-rbac:
-  create: true
 
 affinity:
   nodeAffinity:
