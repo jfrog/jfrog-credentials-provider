@@ -366,13 +366,21 @@ For more information about IRSA, see the [AWS EKS IRSA documentation](https://do
 
 ### Option B: 🔗 Assume External Role
 
-This method assumes a shared external IAM role (typically in a central account) before authenticating to Artifactory. Instead of registering every cluster's EC2 instance role in Artifactory, you register a single external role once, and each cluster's node role assumes into it. This scales cleanly across a large fleet of EKS clusters.
+This method assumes a shared external IAM role before authenticating to Artifactory. Instead of registering every cluster's EC2 instance role in Artifactory, you register a single external role once, and each cluster's node role assumes into it. This scales cleanly across a large fleet of EKS clusters and, most importantly, **works across AWS accounts**: the external role can live in a central account (account **Y**) while your clusters run in any number of other accounts (**X1, X2, … Xn**), and they all fan in to the same role.
+
+**Cross-account model:** A node role in a source account (**X**) assumes the external role in the target account (**Y**). Because Artifactory only ever sees the assumed role's identity (**Y**'s role ARN), you create **one** Artifactory binding for the external role and reuse it for every cluster in every account that is authorized to assume it.
+
+> **🔐 Both sides must be configured.** Cross-account `sts:AssumeRole` requires two independent grants, and *both* must pass:
+> 1. **Target account Y** — the external role's *trust policy* must allow the caller (account X's role, or account X as a whole).
+> 2. **Source account X** — the node role's *permissions policy* must allow `sts:AssumeRole` on Y's role ARN.
+>
+> Neither alone is sufficient cross-account. This is a single hop (X → Y); STS does not chain assumptions transitively.
 
 **Flow Overview:**
 
-1. The credential provider obtains AWS credentials from the EKS worker node's IAM role (via the EC2 instance metadata service)
+1. The credential provider obtains AWS credentials from the EKS worker node's IAM role in the source account (via the EC2 instance metadata service)
 
-2. The provider uses those credentials to call AWS STS `AssumeRole` on the external role ARN, obtaining temporary credentials for the external role
+2. The provider uses those credentials to call AWS STS `AssumeRole` on the external role ARN (which may be in another account), obtaining temporary credentials for the external role
 
 3. The provider uses the temporary credentials to sign an AWS STS GetCallerIdentity request locally
 
@@ -380,16 +388,18 @@ This method assumes a shared external IAM role (typically in a central account) 
 
 5. The kubelet uses the registry token to authenticate and pull the container image
 
-##### Create the External Role
+##### Step 1: Create the External Role (in the target account Y)
 
-Create the external (target) role that the credential provider will assume. This is the single role you register in Artifactory.
+Create the external (target) role that the credential provider will assume. This is the single role you register in Artifactory. Run this in the account that owns the shared role (**Y**).
+
+The trust policy controls who is allowed to assume the role. Choose one of the two options below.
 
 ```bash
 # Set variables
 EXTERNAL_ROLE_NAME="jfrog-credentials-provider-external-role"
-NODE_ROLE_ARN="arn:aws:iam::222222222222:role/your-eks-node-role"  # The node role that will assume this role
 
-# Create trust policy allowing the node role(s) to assume this role
+# Option 1: Trust a specific node role (tightest scope)
+NODE_ROLE_ARN="arn:aws:iam::111111111111:role/your-eks-node-role"  # Source account X's node role
 cat > external-trust-policy.json <<EOF
 {
   "Version": "2012-10-17",
@@ -405,7 +415,27 @@ cat > external-trust-policy.json <<EOF
 }
 EOF
 
-# Create the external role (run in the account that will own the shared role)
+# Option 2: Trust an entire source account (best for fan-in across many clusters)
+# "<account>:root" means "any principal in account X that ALSO has sts:AssumeRole
+# permission on this role" - it delegates the per-role decision to account X's IAM.
+# Adding a new cluster in X then needs no change here, only the grant in Step 2.
+SOURCE_ACCOUNT_ID="111111111111"  # Source account X
+cat > external-trust-policy.json <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "arn:aws:iam::${SOURCE_ACCOUNT_ID}:root"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+EOF
+
+# Create the external role
 EXTERNAL_ROLE_ARN=$(aws iam create-role \
   --role-name "$EXTERNAL_ROLE_NAME" \
   --assume-role-policy-document file://external-trust-policy.json \
@@ -419,13 +449,16 @@ rm external-trust-policy.json
 ```
 
 > **💾 Important:** Save the `EXTERNAL_ROLE_ARN` - this is your `aws_external_role_arn` (the role that gets registered in Artifactory).
+>
+> **🔁 Multiple source accounts (X1, X2, …):** Add each account as an additional `Principal` entry (either specific node-role ARNs or `<account>:root` per account), or list several ARNs in the `AWS` array. Every authorized account can then assume the same role and share the one Artifactory binding.
 
-##### Grant the Node Role Permission to Assume the External Role
+##### Step 2: Grant the Node Role Permission to Assume the External Role (in each source account X)
 
-The EKS worker node's IAM role must be allowed to assume the external role:
+In every source account, the EKS worker node's IAM role must be allowed to assume the external role:
 
 ```bash
-NODE_ROLE_NAME="your-eks-node-role"
+NODE_ROLE_NAME="your-eks-node-role"      # Node role in source account X
+EXTERNAL_ROLE_ARN="arn:aws:iam::222222222222:role/jfrog-credentials-provider-external-role"  # Target role in account Y
 
 aws iam put-role-policy \
   --role-name "$NODE_ROLE_NAME" \
@@ -442,7 +475,7 @@ aws iam put-role-policy \
   }'
 ```
 
-> **📝 Note:** When the external role lives in a different AWS account, this is a cross-account assume. Ensure both sides are configured: the external role's trust policy must allow the node role's account/role, and the node role must have `sts:AssumeRole` on the external role ARN.
+> **📝 Note:** Run this in each source account that hosts clusters. The `Resource` is always the target role ARN in account Y, regardless of which source account the node role lives in.
 
 The credential provider assumes the external role for a configurable session duration (`aws_external_role_session_duration_seconds`, default `3600` seconds, max `43200` seconds).
 
@@ -630,7 +663,7 @@ ARTIFACTORY_USER="aws-eks-user"  # User that will be mapped to AWS credentials/O
 
 If using IAM Role Assumption or Assume External Role, you need to map the IAM role to an Artifactory user. This is done through Artifactory's API.
 
-> **🔗 Assume External Role:** Register the **external role ARN** (`aws_external_role_arn`), not the per-cluster node role. Because every cluster assumes into the same external role, this single binding covers your whole fleet. Set `ROLE_ARN` to the external role ARN in the commands below.
+> **🔗 Assume External Role:** Register the **external role ARN** (`aws_external_role_arn`) from the target account Y, not the per-cluster node role. Because every cluster (across any source account) assumes into the same external role, Artifactory only ever sees that one role's identity, so this single binding covers your whole fleet. Set `ROLE_ARN` to the external role ARN in the commands below.
 
 #### Delete Existing Binding (if any)
 
