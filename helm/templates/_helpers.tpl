@@ -276,6 +276,8 @@ Azure env for YAML kubelet config. Omit empty tenant/nodepool IDs (workload iden
 {{- $item := .item -}}
 {{- $values := .Values -}}
 env:
+  - name: cloud_provider
+    value: "azure"
   - name: artifactory_url
     value: {{ $item.artifactoryUrl | quote }}
   - name: azure_app_client_id
