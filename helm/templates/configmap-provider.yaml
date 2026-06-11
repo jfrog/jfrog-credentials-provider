@@ -29,7 +29,7 @@ data:
       serviceAccountTokenAudience: api://AzureADTokenExchange
       {{- end }}
       cacheType: ServiceAccount
-      requireServiceAccount: {{ .tokenAttributes.requireServiceAccount | default true }}
+      requireServiceAccount: {{ .tokenAttributes.requireServiceAccount }}
       requiredServiceAccountAnnotationKeys:
         - azure.workload.identity/client-id
         - JFrogExchange
@@ -41,7 +41,7 @@ data:
       serviceAccountTokenAudience: "artifactory"
       {{- end }}
       cacheType: ServiceAccount
-      requireServiceAccount: {{ .tokenAttributes.requireServiceAccount | default true }}
+      requireServiceAccount: {{ .tokenAttributes.requireServiceAccount }}
       requiredServiceAccountAnnotationKeys:
         - iam.gke.io/gcp-service-account
         - JFrogExchange
@@ -50,6 +50,8 @@ data:
     {{- include "jfrog-credential-provider.awsEnvYaml" (dict "item" . "Values" $.Values "Root" $) | nindent 4 }}
     {{- else if eq $cloudProvider "gcp" }}
     env:
+    - name: cloud_provider
+      value: "google"
     - name: artifactory_url
       value: "{{ .artifactoryUrl }}"
     - name: google_service_account_email
@@ -79,7 +81,7 @@ data:
     "tokenAttributes": {
       "serviceAccountTokenAudience": "sts.amazonaws.com",
       "cacheType": "ServiceAccount",
-      "requireServiceAccount": {{ .tokenAttributes.requireServiceAccount | default false }},
+      "requireServiceAccount": {{ .tokenAttributes.requireServiceAccount }},
       {{- if .tokenAttributes.requireServiceAccount }}
       "requiredServiceAccountAnnotationKeys": [
         "eks.amazonaws.com/role-arn",
