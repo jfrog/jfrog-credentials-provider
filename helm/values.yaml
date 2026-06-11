@@ -1,6 +1,10 @@
 # Default values for jfrog-credential-provider
 # This is a YAML-formatted file.
 
+# Download URL for the credential provider binary
+# The chart will automatically append the architecture suffix (-amd64 or -arm64)
+downloadUrl: "https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/1.2.0/jfrog-credential-provider-linux"
+
 # Kubernetes distribution (optional). Omit for EKS, AKS, and GKE (default behavior).
 # Set to "openshift" for OpenShift on AWS or Azure — see OpenShift.md.
 # tokenAttributes (projected service accounts): OpenShift 4.21+ only (not 4.20).
@@ -19,10 +23,6 @@ openshift:
   targetBinaryDir: /usr/libexec/kubelet-image-credential-provider-plugins
   # Directory containing the platform kubelet credential provider YAML (merged with JFrog config).
   targetProviderConfigDir: /etc/kubernetes/credential-providers
-
-# Download URL for the credential provider binary
-# The chart will automatically append the architecture suffix (-amd64 or -arm64)
-downloadUrl: "https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/1.3.0/jfrog-credential-provider-linux"
 
 # Authentication for downloading the provider binary from a private Artifactory instance.
 # Leave all fields empty for anonymous/public download (default behaviour).
