@@ -6,6 +6,10 @@ metadata:
   labels:
     {{- include "jfrog-credential-provider.labels" . | nindent 4 }}
 spec:
+  {{- with .Values.updateStrategy }}
+  updateStrategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "jfrog-credential-provider.selectorLabels" . | nindent 6 }}
