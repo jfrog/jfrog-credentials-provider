@@ -28,6 +28,8 @@ Context: dict with keys "item" (providerConfig entry) and "Values" (chart values
 {{- $values := .Values -}}
 {{- $root := .Root -}}
 env:
+  - name: cloud_provider
+    value: "aws"
   - name: aws_auth_method
     value: {{ $item.aws.aws_auth_method | quote }}
   - name: artifactory_url
