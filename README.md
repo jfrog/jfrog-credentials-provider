@@ -139,6 +139,10 @@ Choose your cloud provider to get started:
 Plugin logs are available in your kubelet VM at:
 
 ```bash
+tail -f /var/log/jfrog-credentials-provider/jfrog-credentials-provider.log
+```
+ - **If your version is earlier than 1.1.2, the log location is:**
+```bash
 tail -f /var/log/jfrog-credential-provider.log
 ```
 

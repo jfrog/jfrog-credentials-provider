@@ -34,7 +34,9 @@ chroot /host
  Azure: `/var/lib/kubelet/credential-provider-config.yaml`
  GCP: `/etc/srv/kubernetes/cri_auth_config.yaml`
 
-**Logs**: `/var/log/jfrog-credential-provider.log`
+**Logs**: `/var/log/jfrog-credentials-provider/jfrog-credentials-provider.log`
+ - **If your version is earlier than 1.1.2, the log location is:**
+`tail -f /var/log/jfrog-credential-provider.log`
 
 ### 3. Test the Plugin Manually
 
@@ -126,5 +128,7 @@ less /var/log/cloud-init-output.log
 
 ## Log Locations
 
-- **Plugin logs**: `/var/log/jfrog-credential-provider.log`
+- **Plugin logs**: `/var/log/jfrog-credentials-provider/jfrog-credentials-provider.log`
+  - **If your version is earlier than 1.1.2, the log location is:**
+`tail -f /var/log/jfrog-credential-provider.log`
 - **Kubelet logs**: `journalctl -u kubelet`
