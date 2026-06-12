@@ -275,26 +275,41 @@ func MergeConfig(dryRun, isYaml bool, providerHome string, providerConfigFileNam
 // WatchKubelet monitors kubelet health for the given timeout (in seconds).
 // It waits an initial grace period, then polls systemctl is-active kubelet every 5 seconds.
 // activating/reloading are normal during restart; failed/inactive trigger rollback.
+// kubelet must remain active for 5 consecutive seconds before the watcher succeeds.
 func WatchKubelet(isYaml bool, providerHome string, providerConfigFileName string, timeout int, logs *logger.Logger) {
 	configPath := resolveConfigPath(isYaml, providerHome, providerConfigFileName)
 
 	interval := 5
+	activeStableDuration := 20 * time.Second
 	elapsed := 0
 	gracePeriod := 20
 	logs.Info(fmt.Sprintf("Watcher: waiting %d seconds grace period before monitoring kubelet", gracePeriod))
 	time.Sleep(time.Duration(gracePeriod) * time.Second)
 	elapsed += gracePeriod
 
+	var activeSince time.Time
 	status := ""
 	for elapsed < timeout {
 		out, _ := exec.Command("systemctl", "is-active", "kubelet").Output()
 		status = strings.TrimSpace(string(out))
 		switch status {
 		case "active":
-			logs.Info(fmt.Sprintf("Watcher: kubelet active (%d/%d seconds elapsed)", elapsed, timeout))
-			elapsed = timeout
-			continue
+			if activeSince.IsZero() {
+				activeSince = time.Now()
+				logs.Info(fmt.Sprintf("Watcher: kubelet active (%d/%d seconds elapsed), waiting %d seconds for stability", elapsed, timeout, int(activeStableDuration.Seconds())))
+			} else if time.Since(activeSince) >= activeStableDuration {
+				logs.Info(fmt.Sprintf("Watcher: kubelet active and stable for %d seconds (%d/%d seconds elapsed)", int(activeStableDuration.Seconds()), elapsed, timeout))
+				elapsed = timeout
+				continue
+			} else {
+				remaining := int(activeStableDuration.Seconds() - time.Since(activeSince).Seconds())
+				if remaining < 0 {
+					remaining = 0
+				}
+				logs.Info(fmt.Sprintf("Watcher: kubelet active (%d/%d seconds elapsed), %d seconds until stable", elapsed, timeout, remaining))
+			}
 		case "activating", "reloading":
+			activeSince = time.Time{}
 			logs.Info(fmt.Sprintf("Watcher: kubelet status %q (%d/%d seconds elapsed), waiting", status, elapsed, timeout))
 		case "failed", "inactive", "dead":
 			logs.Error("Kubelet is not healthy (status: " + status + "), triggering rollback")
@@ -302,6 +317,7 @@ func WatchKubelet(isYaml bool, providerHome string, providerConfigFileName strin
 			rollbackConfig(configPath, logs)
 			return
 		default:
+			activeSince = time.Time{}
 			logs.Info(fmt.Sprintf("Watcher: kubelet status %q (%d/%d seconds elapsed), waiting", status, elapsed, timeout))
 		}
 		time.Sleep(time.Duration(interval) * time.Second)
