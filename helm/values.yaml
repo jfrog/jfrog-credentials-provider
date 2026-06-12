@@ -3,7 +3,7 @@
 
 # Download URL for the credential provider binary
 # The chart will automatically append the architecture suffix (-amd64 or -arm64)
-downloadUrl: "https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/1.2.0/jfrog-credential-provider-linux"
+downloadUrl: "https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/1.3.0/jfrog-credential-provider-linux"
 
 # Kubernetes distribution (optional). Omit for EKS, AKS, and GKE (default behavior).
 # Set to "openshift" for OpenShift on AWS or Azure — see OpenShift.md.
