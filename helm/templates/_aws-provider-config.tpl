@@ -6,7 +6,7 @@ AWS provider tokenAttributes for YAML kubelet config (OpenShift / ROSA)
 tokenAttributes:
   serviceAccountTokenAudience: sts.amazonaws.com
   cacheType: ServiceAccount
-  requireServiceAccount: {{ .tokenAttributes.requireServiceAccount | default false }}
+  requireServiceAccount: {{ .tokenAttributes.requireServiceAccount | default true }}
   {{- if .tokenAttributes.requireServiceAccount }}
   requiredServiceAccountAnnotationKeys:
     - eks.amazonaws.com/role-arn
