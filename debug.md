@@ -25,14 +25,17 @@ chroot /host
 ### 2. Check Plugin Installation
 
 **Plugin Location**: 
- AWS: `/etc/eks/image-credential-provider/jfrog-credential-provider`
- Azure: `/var/lib/kubelet/credential-provider/jfrog-credential-provider`
+ AWS (EKS): `/etc/eks/image-credential-provider/jfrog-credential-provider`
+ Azure (AKS): `/var/lib/kubelet/credential-provider/jfrog-credential-provider`
  GCP: `/home/kubernetes/bin/jfrog-credential-provider`
+ OpenShift: `/usr/libexec/kubelet-image-credential-provider-plugins/jfrog-credentials-provider`
 
 **Configuration**: 
- AWS: `/etc/eks/image-credential-provider/config.json`
- Azure: `/var/lib/kubelet/credential-provider-config.yaml`
+ AWS (EKS): `/etc/eks/image-credential-provider/config.json`
+ Azure (AKS): `/var/lib/kubelet/credential-provider-config.yaml`
  GCP: `/etc/srv/kubernetes/cri_auth_config.yaml`
+ OpenShift on AWS: `/etc/kubernetes/credential-providers/ecr-credential-provider.yaml` (merged JFrog + ECR)
+ OpenShift on Azure: `/etc/kubernetes/credential-providers/acr-credential-provider.yaml` (merged JFrog + ACR).
 
 **Logs**: `/var/log/jfrog-credentials-provider/jfrog-credentials-provider.log`
  - **If your version is earlier than 1.1.2, the log location is:**

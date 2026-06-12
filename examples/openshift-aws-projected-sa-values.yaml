@@ -1,0 +1,45 @@
+# OpenShift on AWS with projected service account tokens (IAM Roles for Service Accounts). Requires OpenShift 4.21+.
+#
+# See OpenShift.md for IAM, Artifactory, SCC, and workload service account setup.
+
+platform: openshift
+
+# Required on OpenShift: injector needs privileged SCC and a privileged Pod Security namespace
+openshift:
+  grantPrivilegedSCC: true
+  labelNamespacePodSecurity: true
+
+providerConfig:
+  - name: jfrog-credentials-provider
+    artifactoryUrl: "<your-instance>.jfrog.io"
+    matchImages:
+      - "*.jfrog.io"
+      # Alternatively, specify your Artifactory hostname explicitly:
+      # - "<your-instance>.jfrog.io"
+    defaultCacheDuration: 5h
+    tokenAttributes:
+      enabled: true
+      # Require the pulling pod's service account (with IRSA annotations) for every Artifactory pull
+      requireServiceAccount: true
+    aws:
+      enabled: true
+      aws_auth_method: assume_role
+      aws_region: "<aws-region>"
+      # aws_role_name is omitted on OpenShift — IRSA role comes from workload SA annotations only
+
+rbac:
+  create: true
+
+nodeSelector:
+  node-role.kubernetes.io/worker: ""
+
+tolerations:
+  - operator: Exists
+
+serviceAccount:
+  create: true
+  # Do not annotate the DaemonSet service account with eks.amazonaws.com/role-arn.
+  # IRSA roles belong on application service accounts that pull images.
+
+containerLogging:
+  enabled: true

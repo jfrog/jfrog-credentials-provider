@@ -5,6 +5,25 @@
 # The chart will automatically append the architecture suffix (-amd64 or -arm64)
 downloadUrl: "https://releases.jfrog.io/artifactory/run/jfrog-credentials-provider/1.2.0/jfrog-credential-provider-linux"
 
+# Kubernetes distribution (optional). Omit for EKS, AKS, and GKE (default behavior).
+# Set to "openshift" for OpenShift on AWS or Azure — see OpenShift.md.
+# tokenAttributes (projected service accounts): OpenShift 4.21+ only (not 4.20).
+# platform: openshift
+
+# OpenShift only (ignored when platform is not openshift)
+openshift:
+  # RoleBinding to system:openshift:scc:privileged for the chart ServiceAccount.
+  grantPrivilegedSCC: false
+  # Apply privileged Pod Security labels on the release namespace (see OpenShift.md).
+  # When true, create the namespace before helm install; do not use helm --create-namespace.
+  labelNamespacePodSecurity: true
+  # Writable host path for plugin binaries on OpenShift (RHCOS /usr is read-only; bind-mounted at runtime).
+  stagingBinaryDir: /var/lib/jfrog-credential-provider/bin
+  # Kubelet plugin directory on the node (bind-mount target). Override if your OpenShift version uses a different path.
+  targetBinaryDir: /usr/libexec/kubelet-image-credential-provider-plugins
+  # Directory containing the platform kubelet credential provider YAML (merged with JFrog config).
+  targetProviderConfigDir: /etc/kubernetes/credential-providers
+
 # Authentication for downloading the provider binary from a private Artifactory instance.
 # Leave all fields empty for anonymous/public download (default behaviour).
 binaryDownload:
@@ -114,6 +133,8 @@ providerConfig:
       enabled: false
       aws_auth_method: "assume_role"  # Options: "assume_role", "assume_external_role", or "cognito_oidc"
       # aws_region: ""  # Optional: explicit AWS region (e.g. "us-east-1"). If empty, resolved from EC2 metadata.
+      # IAM role ARN for assume_role (EKS node role or fallback). Not used on OpenShift with
+      # tokenAttributes.requireServiceAccount — omit aws_role_name there; IRSA uses SA annotations.
       aws_role_name: "dummy"
       # Secret TTL should be greater than defaultCacheDuration
       # only applicable for assume_role / assume_external_role methods

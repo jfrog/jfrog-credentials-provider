@@ -15,14 +15,26 @@ data:
     log "Startup of the JFrog Credential Plugin injector"
 
     {{- $cloudProvider := include "jfrog-credential-provider.cloudProvider" . }}
-    {{- if eq $cloudProvider "aws" }}
+    {{- $kubeletYaml := eq (include "jfrog-credential-provider.kubeletConfigYaml" .) "true" }}
+    {{- $isOpenShiftStaging := eq (include "jfrog-credential-provider.isOpenShiftStaging" .) "true" }}
+    {{- $platformPlugin := include "jfrog-credential-provider.openshiftPlatformPlugin" . }}
+    {{- if and (eq $cloudProvider "aws") (not $isOpenShiftStaging) }}
+    log "Using AWS kubelet credential provider paths (EKS-compatible; platform not set to openshift)"
     # Needed for nsenter, since nsenter will mount the host filesystem to /host
     export KUBELET_MOUNT_PATH="/host"
     # Used to download the jfrog-credential-provider binary to this directory
     export JFROG_CREDENTIAL_PROVIDER_BINARY_DIR="/etc/eks/image-credential-provider"
     # Path to kubelet credential provider config file
     export KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH="/etc/eks/image-credential-provider/config.json"
+    {{- else if $isOpenShiftStaging }}
+    log "Platform: openshift ({{ $cloudProvider }} credential provider paths)"
+    export KUBELET_MOUNT_PATH="/host"
+    export JFROG_CREDENTIAL_PROVIDER_BINARY_DIR="{{ .Values.openshift.targetBinaryDir }}"
+    export JFROG_STAGING_BINARY_DIR="{{ .Values.openshift.stagingBinaryDir }}"
+    export KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH="{{ include "jfrog-credential-provider.openshiftKubeletConfigPath" . }}"
+    export PLATFORM_CREDENTIAL_PLUGIN="{{ $platformPlugin }}"
     {{- else if eq $cloudProvider "azure" }}
+    log "Using Azure kubelet credential provider paths (AKS-compatible; platform not set to openshift)"
     export KUBELET_MOUNT_PATH=""
     export JFROG_CREDENTIAL_PROVIDER_BINARY_DIR="/var/lib/kubelet/credential-provider"
     export KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH="/var/lib/kubelet/credential-provider-config.yaml"
@@ -41,7 +53,22 @@ data:
     export KUBELET_CREDENTIAL_PROVIDER_CONFIG_FILE_NAME=$(basename ${KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH})
 
     log "The current kubelet configuration at ${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH}:"
-    cat ${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH}
+    if [ -f "${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH}" ]; then
+        cat ${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH}
+    else
+        log "WARNING: kubelet credential provider config not found at ${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH}"
+        {{- if $isOpenShiftStaging }}
+        log "On OpenShift this file is normally created by the platform (MCO / cluster install). Verify the node has {{ $platformPlugin }} credential provider support."
+        {{- end }}
+    fi
+
+    log "Ensuring plugin directory exists: ${KUBELET_MOUNT_PATH}${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}"
+    {{- if $isOpenShiftStaging }}
+    log "Ensuring staging directory exists: ${KUBELET_MOUNT_PATH}${JFROG_STAGING_BINARY_DIR}"
+    mkdir -p "${KUBELET_MOUNT_PATH}${JFROG_STAGING_BINARY_DIR}"
+    {{- else }}
+    mkdir -p "${KUBELET_MOUNT_PATH}${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}"
+    {{- end }}
 
     # Find the architecture of the machine
     ARCH=$(uname -m)
@@ -54,13 +81,50 @@ data:
     export JFROG_CREDENTIAL_PROVIDER_BINARY_URL="${JFROG_CREDENTIAL_PROVIDER_BINARY_URL}-${ARCH_SUFFIX}"
 
     # Acquire the jfrog-credential-provider binary (AMI path, download with auth, or anonymous download)
+    {{- if $isOpenShiftStaging }}
+    # RHCOS mounts /usr read-only; stage plugins on /var and bind-mount the directory
+    PLUGIN_DIR="${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}"
+
+    # If a prior run left bind mount active, PLUGIN_DIR aliases staging paths and cp sees "same file" — umount first
+    if nsenter -t 1 -m -- mountpoint -q "${PLUGIN_DIR}" 2>/dev/null; then
+        log "Removing prior bind mount at ${PLUGIN_DIR} (required to copy ostree binaries into staging)"
+        nsenter -t 1 -m -- umount "${PLUGIN_DIR}" || true
+    fi
+    {{- end }}
+
     if [ -n "${LOCAL_BINARY_HOST_PATH}" ]; then
         log "Using AMI-baked binary from host path: ${LOCAL_BINARY_HOST_PATH} (node arch: ${ARCH_SUFFIX})"
+        {{- if $isOpenShiftStaging }}
+        cp /local-binary/{{ base $.Values.internalBinaryHostPath }} "${KUBELET_MOUNT_PATH}${JFROG_STAGING_BINARY_DIR}/{{ .name }}"
+        if [[ $? -ne 0 ]]; then
+            log "Failed to copy binary from host path ${LOCAL_BINARY_HOST_PATH} (mounted at /local-binary/{{ base $.Values.internalBinaryHostPath }})"
+            exit 1
+        fi
+        chmod +x "${KUBELET_MOUNT_PATH}${JFROG_STAGING_BINARY_DIR}/{{ .name }}"
+        # Preserve platform credential plugin (from unobstructed PLUGIN_DIR tree)
+        if [ -f "${KUBELET_MOUNT_PATH}${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/${PLATFORM_CREDENTIAL_PLUGIN}" ]; then
+            cp -f "${KUBELET_MOUNT_PATH}${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/${PLATFORM_CREDENTIAL_PLUGIN}" \
+                  "${KUBELET_MOUNT_PATH}${JFROG_STAGING_BINARY_DIR}/${PLATFORM_CREDENTIAL_PLUGIN}"
+            chmod +x "${KUBELET_MOUNT_PATH}${JFROG_STAGING_BINARY_DIR}/${PLATFORM_CREDENTIAL_PLUGIN}"
+            log "Copied ${PLATFORM_CREDENTIAL_PLUGIN} into staging directory"
+        else
+            log "WARNING: ${PLATFORM_CREDENTIAL_PLUGIN} not found on node; platform registry pulls may fail after bind mount"
+        fi
+        nsenter -t 1 -m -- mount --bind "${JFROG_STAGING_BINARY_DIR}" "${PLUGIN_DIR}"
+        DOWNLOAD_STATUS=$?
+        if [[ ${DOWNLOAD_STATUS} -eq 0 ]]; then
+            log "Bind-mounted ${JFROG_STAGING_BINARY_DIR} -> ${PLUGIN_DIR}"
+        else
+            log "ERROR: bind mount of ${JFROG_STAGING_BINARY_DIR} to ${PLUGIN_DIR} failed"
+        fi
+        {{- else }}
         cp /local-binary/{{ base $.Values.internalBinaryHostPath }} ${KUBELET_MOUNT_PATH}${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ .name }}
         if [[ $? -ne 0 ]]; then
             log "Failed to copy binary from host path ${LOCAL_BINARY_HOST_PATH} (mounted at /local-binary/{{ base $.Values.internalBinaryHostPath }})"
             exit 1
         fi
+        DOWNLOAD_STATUS=0
+        {{- end }}
     else
         # Build curl authentication arguments
         CURL_AUTH_ARGS=()
@@ -71,41 +135,79 @@ data:
         fi
 
         log "Downloading the jfrog-credential-provider binary (${JFROG_CREDENTIAL_PROVIDER_BINARY_URL})"
+        {{- if $isOpenShiftStaging }}
+        curl -L -f "${CURL_AUTH_ARGS[@]}" -o /tmp/{{ .name }} "${JFROG_CREDENTIAL_PROVIDER_BINARY_URL}"
+        DOWNLOAD_STATUS=$?
+        if [[ ${DOWNLOAD_STATUS} -eq 0 ]]; then
+            chmod +x /tmp/{{ .name }}
+            cp -f /tmp/{{ .name }} "${KUBELET_MOUNT_PATH}${JFROG_STAGING_BINARY_DIR}/{{ .name }}"
+            chmod +x "${KUBELET_MOUNT_PATH}${JFROG_STAGING_BINARY_DIR}/{{ .name }}"
+            # Preserve platform credential plugin (from unobstructed PLUGIN_DIR tree)
+            if [ -f "${KUBELET_MOUNT_PATH}${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/${PLATFORM_CREDENTIAL_PLUGIN}" ]; then
+                cp -f "${KUBELET_MOUNT_PATH}${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/${PLATFORM_CREDENTIAL_PLUGIN}" \
+                      "${KUBELET_MOUNT_PATH}${JFROG_STAGING_BINARY_DIR}/${PLATFORM_CREDENTIAL_PLUGIN}"
+                chmod +x "${KUBELET_MOUNT_PATH}${JFROG_STAGING_BINARY_DIR}/${PLATFORM_CREDENTIAL_PLUGIN}"
+                log "Copied ${PLATFORM_CREDENTIAL_PLUGIN} into staging directory"
+            else
+                log "WARNING: ${PLATFORM_CREDENTIAL_PLUGIN} not found on node; platform registry pulls may fail after bind mount"
+            fi
+            nsenter -t 1 -m -- mount --bind "${JFROG_STAGING_BINARY_DIR}" "${PLUGIN_DIR}"
+            DOWNLOAD_STATUS=$?
+            if [[ ${DOWNLOAD_STATUS} -eq 0 ]]; then
+                log "Bind-mounted ${JFROG_STAGING_BINARY_DIR} -> ${PLUGIN_DIR}"
+            else
+                log "ERROR: bind mount of ${JFROG_STAGING_BINARY_DIR} to ${PLUGIN_DIR} failed"
+            fi
+        fi
+        {{- else }}
         curl -L -f "${CURL_AUTH_ARGS[@]}" -o ${KUBELET_MOUNT_PATH}${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ .name }} "${JFROG_CREDENTIAL_PROVIDER_BINARY_URL}"
+        DOWNLOAD_STATUS=$?
+        {{- end }}
+    fi
 
-        if [[ $? -ne 0 ]]; then
-            log "Downloading (${JFROG_CREDENTIAL_PROVIDER_BINARY_URL}) failed"
+    if [[ ${DOWNLOAD_STATUS} -ne 0 ]]; then
+        log "Acquiring the jfrog-credential-provider binary failed (${JFROG_CREDENTIAL_PROVIDER_BINARY_URL})"
 
-            # Wait and exit to allow pod to restart (ugly yet simple solution for when the cluster DNS service is not ready yet)
-            log "Sleeping for 10 seconds before exiting"
-            sleep 10
+        # Wait and exit to allow pod to restart (ugly yet simple solution for when the cluster DNS service is not ready yet)
+        log "Sleeping for 10 seconds before exiting"
+        sleep 10
+        exit 1
+    else
+        log "Successfully acquired the jfrog-credential-provider binary"
+        log "Making the jfrog-credential-provider binary executable"
+        {{- if not $isOpenShiftStaging }}
+        chmod +x ${KUBELET_MOUNT_PATH}${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ .name }}
+        {{- end }}
+
+        {{- if $kubeletYaml }}
+        echo "Copying the /etc/${JFROG_CONFIG_FILE}.yaml configuration file to ${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}/${JFROG_CONFIG_FILE}.yaml"
+        cp -f "/etc/${JFROG_CONFIG_FILE}.yaml" "${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}/${JFROG_CONFIG_FILE}.yaml"
+        sleep 2 # Wait a bit to ensure the file is copied before proceeding
+        {{- $mergeEnv := include "jfrog-credential-provider.addProviderConfigEnvAssignments" $ | trim }}
+        MERGE_OUT=$(nsenter -t 1 -m -p -- env{{- if ne $mergeEnv "" }} {{ $mergeEnv }}{{- end }} ${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ .name }} add-provider-config --yaml --provider-home "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}" --provider-config "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_FILE_NAME}" 2>&1)
+        MERGE_EC=$?
+        echo "${MERGE_OUT}"
+        if [[ ${MERGE_EC} -ne 0 ]]; then
+            echo "Updating the kubelet configuration failed (exit ${MERGE_EC}). Check host logs: /var/log/jfrog-credentials-provider/jfrog-credentials-provider.log"
             exit 1
         fi
+        {{- else if eq $cloudProvider "aws" }}
+        echo "Copying the /etc/${JFROG_CONFIG_FILE}.json configuration file to ${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}/${JFROG_CONFIG_FILE}.json"
+        cp -f "/etc/${JFROG_CONFIG_FILE}.json" "${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}/${JFROG_CONFIG_FILE}.json"
+        sleep 2 # Wait a bit to ensure the file is copied before proceeding
+        {{- $mergeEnv := include "jfrog-credential-provider.addProviderConfigEnvAssignments" $ | trim }}
+        MERGE_OUT=$(nsenter -t 1 -m -p -- env{{- if ne $mergeEnv "" }} {{ $mergeEnv }}{{- end }} ${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ .name }} add-provider-config --provider-home "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}" --provider-config "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_FILE_NAME}" 2>&1)
+        MERGE_EC=$?
+        echo "${MERGE_OUT}"
+        if [[ ${MERGE_EC} -ne 0 ]]; then
+            echo "Updating the kubelet configuration failed (exit ${MERGE_EC}). Check host logs: /var/log/jfrog-credentials-provider/jfrog-credentials-provider.log"
+            exit 1
+        fi
+        {{- end }}
+
+        log "The final ${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH}:"
+        cat ${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH}
     fi
-
-    log "Successfully acquired the jfrog-credential-provider binary"
-    log "Making the jfrog-credential-provider binary executable"
-    chmod +x ${KUBELET_MOUNT_PATH}${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ .name }}
-
-    {{- if or (eq $cloudProvider "gcp") (eq $cloudProvider "azure") }}
-    echo "Copying the /etc/${JFROG_CONFIG_FILE}.yaml configuration file to ${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}/${JFROG_CONFIG_FILE}.yaml"
-    cp -f "/etc/${JFROG_CONFIG_FILE}.yaml" "${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}/${JFROG_CONFIG_FILE}.yaml"
-    sleep 2 # Wait a bit to ensure the file is copied before proceeding
-    nsenter -t 1 -m -p -- ${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ .name }} add-provider-config --yaml --provider-home "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}" --provider-config "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_FILE_NAME}"
-    {{- else if eq $cloudProvider "aws" }}
-    echo "Copying the /etc/${JFROG_CONFIG_FILE}.json configuration file to ${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}/${JFROG_CONFIG_FILE}.json"
-    cp -f "/etc/${JFROG_CONFIG_FILE}.json" "${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}/${JFROG_CONFIG_FILE}.json"
-    sleep 2 # Wait a bit to ensure the file is copied before proceeding
-    nsenter -t 1 -m -p -- ${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ .name }} add-provider-config --provider-home "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}" --provider-config "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_FILE_NAME}"
-    {{- end }}
-
-    if [[ $? -ne 0 ]]; then
-        echo "Updating the kubelet configuration failed"
-        exit 1
-    fi
-
-    log "The final ${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH}:"
-    cat ${KUBELET_MOUNT_PATH}${KUBELET_CREDENTIAL_PROVIDER_CONFIG_PATH}
 
     log "Done updating the kubelet config"
 
@@ -114,7 +216,7 @@ data:
     nsenter -t 1 -m -p -- systemctl status kubelet
 
     log "Starting kubelet health watcher (60s)"
-    {{- if or (eq $cloudProvider "gcp") (eq $cloudProvider "azure") }}
+    {{- if $kubeletYaml }}
     nsenter -t 1 -m -p -u -- systemd-run --scope ${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ .name }} watch-kubelet --yaml --provider-home "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}" --provider-config "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_FILE_NAME}" --timeout 60 &
     {{- else if eq $cloudProvider "aws" }}
     nsenter -t 1 -m -p -u -- systemd-run --scope ${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ .name }} watch-kubelet --provider-home "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_DIR}" --provider-config "${KUBELET_CREDENTIAL_PROVIDER_CONFIG_FILE_NAME}" --timeout 60 &

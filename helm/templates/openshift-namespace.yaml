@@ -1,0 +1,12 @@
+{{- if eq (include "jfrog-credential-provider.openshiftLabelNamespacePodSecurity" .) "true" }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "jfrog-credential-provider.namespace" . }}
+  labels:
+    # enforce only; do not set audit/warn here — OpenShift's
+    # pod-security-admission-label-synchronization-controller owns those and
+    # Helm server-side apply will conflict if the chart tries to manage them.
+    pod-security.kubernetes.io/enforce: privileged
+    security.openshift.io/scc.podSecurityLabelSync: "false"
+{{- end }}

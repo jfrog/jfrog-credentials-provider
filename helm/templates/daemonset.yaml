@@ -78,7 +78,9 @@ spec:
             privileged: true
           volumeMounts:
           {{- $cloudProvider := include "jfrog-credential-provider.cloudProvider" . }}
-            {{- if or (eq $cloudProvider "aws") (eq $cloudProvider "gcp") }}
+          {{- $kubeletYaml := eq (include "jfrog-credential-provider.kubeletConfigYaml" .) "true" }}
+          {{- $useHostMount := eq (include "jfrog-credential-provider.useHostMount" .) "true" }}
+            {{- if $useHostMount }}
             - mountPath: /host
               name: host
             {{- else if (eq $cloudProvider "azure") }}
@@ -88,7 +90,11 @@ spec:
             - mountPath: /bin/setup.sh
               subPath: setup.sh
               name: {{ include "jfrog-credential-provider.fullname" . }}-setup
-            {{- if eq $cloudProvider "aws" }}
+            {{- if $kubeletYaml }}
+            - mountPath: /etc/jfrog-provider.yaml
+              subPath: jfrog-provider.yaml
+              name: {{ include "jfrog-credential-provider.fullname" . }}-config
+            {{- else if eq $cloudProvider "aws" }}
             - mountPath: /etc/jfrog-provider.json
               subPath: jfrog-provider.json
               name: {{ include "jfrog-credential-provider.fullname" . }}-config
@@ -134,18 +140,16 @@ spec:
         {{- end }}
       {{- end }}
       volumes:
-        {{- if or (eq $cloudProvider "aws") (eq $cloudProvider "gcp") }}
+        {{- if $useHostMount }}
         - name: host
           hostPath:
             path: /
             type: Directory
-        {{- else }}
-        {{- if eq $cloudProvider "azure" }}
+        {{- else if eq $cloudProvider "azure" }}
         - name: kubelet
           hostPath:
             path: /var/lib/kubelet
             type: Directory
-          {{- end }}
         {{- end }}
         - name: {{ include "jfrog-credential-provider.fullname" . }}-setup
           configMap:

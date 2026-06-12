@@ -2,6 +2,8 @@
 
 This guide walks you through setting up the JFrog Kubelet Credential Provider on Azure Kubernetes Service (AKS) from scratch.
 
+For **OpenShift on Azure** (including Azure Red Hat OpenShift), see [OpenShift.md](./OpenShift.md).
+
 ## 📋 Overview
 
 The JFrog Credentials Provider uses Azure managed identities to authenticate with JFrog Artifactory via OpenID Connect (OIDC). This eliminates the need for manual image pull secret management by dynamically retrieving credentials when pulling container images.

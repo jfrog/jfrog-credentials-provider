@@ -2,6 +2,15 @@
 
 All notable changes to this Helm chart will be documented in this file.
 
+## [1.3.0] - 11th June, 2026
+* Native OpenShift Support (`platform: openshift`): Added built-in support for AWS (`ROSA`) and Azure (`ARO`) that automatically merges your custom settings into the platform’s existing cloud credential files (`ecr-credential-provider.yaml` or `acr-credential-provider.yaml`).
+* Smart Binary Installation Workaround: Implemented an automated installer that safely saves the plugin binary into a writable folder (`/var/lib/...`) and tricks OpenShift's locked-down, read-only system into seeing it exactly where the node expects it (`/usr/libexec/...`).
+* Enhanced Workload Security (`OpenShift 4.21+`): Integrated secure token exchanges (tokenAttributes) to let individual application accounts securely pull images.
+* Added [OpenShift.md](../OpenShift.md) (consolidates ROSA.md and ARO.md)
+* Added [examples/openshift-azure-projected-sa-values.yaml](../examples/openshift-azure-projected-sa-values.yaml) and [examples/openshift-aws-projected-sa-values.yaml](../examples/openshift-aws-projected-sa-values.yaml)
+
+**Note: The JFrog credential provider is supported on OpenShift versions 4.21 and above.
+
 ## [1.2.1] - 11th June, 2026
 * Added `internalBinaryHostPath` to support air-gapped / AMI-baked binaries by skipping the download
 * Added `binaryDownload.auth` to support authenticated binary downloads from a private Artifactory repository
