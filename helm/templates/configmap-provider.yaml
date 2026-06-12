@@ -29,7 +29,7 @@ data:
       serviceAccountTokenAudience: api://AzureADTokenExchange
       {{- end }}
       cacheType: ServiceAccount
-      requireServiceAccount: {{ .tokenAttributes.requireServiceAccount }}
+      requireServiceAccount: {{ .tokenAttributes.requireServiceAccount | default true }}
       requiredServiceAccountAnnotationKeys:
         - azure.workload.identity/client-id
         - JFrogExchange
@@ -41,7 +41,7 @@ data:
       serviceAccountTokenAudience: "artifactory"
       {{- end }}
       cacheType: ServiceAccount
-      requireServiceAccount: {{ .tokenAttributes.requireServiceAccount }}
+      requireServiceAccount: {{ .tokenAttributes.requireServiceAccount | default true }}
       requiredServiceAccountAnnotationKeys:
         - iam.gke.io/gcp-service-account
         - JFrogExchange
@@ -81,7 +81,7 @@ data:
     "tokenAttributes": {
       "serviceAccountTokenAudience": "sts.amazonaws.com",
       "cacheType": "ServiceAccount",
-      "requireServiceAccount": {{ .tokenAttributes.requireServiceAccount }},
+      "requireServiceAccount": {{ .tokenAttributes.requireServiceAccount | default true }},
       {{- if .tokenAttributes.requireServiceAccount }}
       "requiredServiceAccountAnnotationKeys": [
         "eks.amazonaws.com/role-arn",
