@@ -280,8 +280,10 @@ env:
     value: "azure"
   - name: artifactory_url
     value: {{ $item.artifactoryUrl | quote }}
+  {{- if $item.azure.azure_app_client_id }}
   - name: azure_app_client_id
     value: {{ $item.azure.azure_app_client_id | quote }}
+  {{- end }}
   {{- if $item.azure.azure_cloud_name }}
   - name: azure_cloud_name
     value: {{ $item.azure.azure_cloud_name | quote }}
@@ -294,8 +296,20 @@ env:
   - name: azure_nodepool_client_id
     value: {{ $item.azure.azure_nodepool_client_id | quote }}
   {{- end }}
+  {{- if $item.azure.azure_auth_method }}
+  - name: azure_auth_method
+    value: "{{ $item.azure.azure_auth_method }}"
+  {{- end }}
+  {{- if $item.azure.azure_app_uri }}
+  - name: azure_app_uri
+    value: "{{ $item.azure.azure_app_uri }}"
+  {{- end }}
   - name: azure_app_audience
     value: {{ $item.azure.azure_app_audience | quote }}
+  {{- if $item.azure.jfrog_token_audience }}
+  - name: jfrog_token_audience
+    value: {{ $item.azure.jfrog_token_audience | quote }}
+  {{- end }}
   - name: jfrog_oidc_provider_name
     value: {{ $item.azure.jfrog_oidc_provider_name | quote }}
   - name: disable_provider_autoupdate

@@ -108,3 +108,30 @@
   {{- end }}
 {{- end }}
 
+{{/* Validate azure.azure_auth_method and its required fields */}}
+{{- range .Values.providerConfig }}
+  {{- if and .azure .azure.enabled }}
+    {{- $azureAuthMethod := .azure.azure_auth_method | default "" }}
+    {{- if and (ne $azureAuthMethod "") (ne $azureAuthMethod "imds_direct") }}
+      {{- $errorMsg := printf "\nERROR: providerConfig '%s' has an invalid azure.azure_auth_method %q.\n" .name $azureAuthMethod }}
+      {{- $errorMsg = printf "%sSupported values are \"\" (legacy federated / projected) or \"imds_direct\".\n" $errorMsg }}
+      {{- fail $errorMsg }}
+    {{- end }}
+    {{/* imds_direct is a node-identity flow and is mutually exclusive with projected tokens (tokenAttributes) */}}
+    {{- if and (eq $azureAuthMethod "imds_direct") (and .tokenAttributes .tokenAttributes.enabled) }}
+      {{- $errorMsg := printf "\nERROR: providerConfig '%s' sets azure.azure_auth_method=\"imds_direct\" together with tokenAttributes.enabled=true.\n" .name }}
+      {{- $errorMsg = printf "%sThese are mutually exclusive: imds_direct uses the node managed identity, while tokenAttributes uses projected service account tokens.\n" $errorMsg }}
+      {{- $errorMsg = printf "%sUse imds_direct without tokenAttributes, or remove azure_auth_method to use the projected token flow.\n" $errorMsg }}
+      {{- fail $errorMsg }}
+    {{- end }}
+    {{/* imds_direct is a node-identity flow; only validate when not using projected tokens */}}
+    {{- if and (eq $azureAuthMethod "imds_direct") (not (and .tokenAttributes .tokenAttributes.enabled)) }}
+      {{- if or (not .azure.azure_app_client_id) (not .azure.azure_nodepool_client_id) (not .azure.jfrog_oidc_provider_name) }}
+        {{- $errorMsg := printf "\nERROR: providerConfig '%s' has azure.azure_auth_method=\"imds_direct\" but is missing required fields.\n" .name }}
+        {{- $errorMsg = printf "%sRequired: azure_app_client_id, azure_nodepool_client_id, jfrog_oidc_provider_name.\n" $errorMsg }}
+        {{- fail $errorMsg }}
+      {{- end }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+

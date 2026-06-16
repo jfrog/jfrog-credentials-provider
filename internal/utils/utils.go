@@ -350,9 +350,19 @@ func ValidateJfrogProviderConfig(config Provider, cloudProvider string) error {
 		}
 
 	case CloudProviderAzure:
+		azureAuthMethod := GetEnvVarValue(config.Env, "azure_auth_method")
+		if azureAuthMethod != "" && azureAuthMethod != "imds_direct" {
+			return fmt.Errorf("azure_auth_method can only be set as imds_direct however the current value is :%s", azureAuthMethod)
+		}
 		if config.TokenAttributes != nil && slices.Contains(config.TokenAttributes.RequiredServiceAccountAnnotationKeys, "JFrogExchange") {
-			if GetEnvVarValue(config.Env, "azure_app_client_id") == "" || GetEnvVarValue(config.Env, "azure_app_audience") == "" || GetEnvVarValue(config.Env, "jfrog_oidc_provider_name") == "" {
-				return fmt.Errorf("ERROR in JFrog Credentials provider, environment variables missing: azure_app_client_id, azure_app_audience, jfrog_oidc_provider_name")
+			if GetEnvVarValue(config.Env, "azure_app_audience") == "" || GetEnvVarValue(config.Env, "jfrog_oidc_provider_name") == "" {
+				return fmt.Errorf("ERROR in JFrog Credentials provider, environment variables missing: azure_app_audience, jfrog_oidc_provider_name")
+			}
+		} else if azureAuthMethod == "imds_direct" {
+			// IMDS direct flow: fetches an app-scoped access token from IMDS using the
+			// app client id; no Azure AD impersonation, so no tenant id or audience.
+			if GetEnvVarValue(config.Env, "azure_app_client_id") == "" || GetEnvVarValue(config.Env, "azure_nodepool_client_id") == "" || GetEnvVarValue(config.Env, "jfrog_oidc_provider_name") == "" {
+				return fmt.Errorf("ERROR in JFrog Credentials provider, environment variables missing: azure_app_client_id, azure_nodepool_client_id, jfrog_oidc_provider_name")
 			}
 		} else if GetEnvVarValue(config.Env, "azure_app_client_id") == "" || GetEnvVarValue(config.Env, "azure_tenant_id") == "" || GetEnvVarValue(config.Env, "azure_app_audience") == "" || GetEnvVarValue(config.Env, "azure_nodepool_client_id") == "" || GetEnvVarValue(config.Env, "jfrog_oidc_provider_name") == "" {
 			return fmt.Errorf("ERROR in JFrog Credentials provider, environment variables missing: azure_app_client_id, azure_tenant_id, azure_app_audience, azure_nodepool_client_id, jfrog_oidc_provider_name")
