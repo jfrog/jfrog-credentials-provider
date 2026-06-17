@@ -94,14 +94,16 @@ image:
 imagePullSecrets: []
 
 # RBAC configuration
-# Note: RBAC is only required for AWS when using service account token projection (KEP 4412)
-# The chart will automatically create RBAC resources only when AWS and rbac.create is true
+# Required when using service account token projection (tokenAttributes.enabled: true) for:
+#   - AWS: grants system:nodes permission to request tokens for sts.amazonaws.com
+#   - Azure: grants system:nodes permission to request tokens for azure_app_audience
+#   - GCP: grants system:nodes permission to request tokens for jfrog_oidc_audience
+#           (required on Kubernetes 1.33+ with ServiceAccountNodeAudienceRestriction enabled)
 rbac:
-  create: false  # Set to true to enable RBAC (only needed for AWS with tokenAttributes enabled)
+  create: false  # Set to true to enable RBAC when tokenAttributes is enabled
   role:
     ## Rules to create. It follows the role specification
     # This applies to the subject system:nodes
-    # Required for AWS IRSA (IAM Roles for Service Accounts) with service account token projection
     additionalRules: []
 
 # Custom volumes to add to the daemonset
