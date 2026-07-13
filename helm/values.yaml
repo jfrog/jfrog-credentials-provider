@@ -177,6 +177,19 @@ providerConfig:
       # Defaults to "*@*" when unset, which matches the documented identity mapping token_spec.audience.
       # Only set this if your Artifactory OIDC identity mapping uses a non-wildcard token_spec.audience.
       # jfrog_token_audience: "*@*"
+    # SPIFFE configuration (cloud-agnostic; works with any SPIFFE implementation — see SPIFFE.md)
+    spiffe:
+      enabled: false
+      # Address of the node-local SPIFFE Workload API socket. The path is
+      # implementation-specific (e.g. SPIRE's default is shown below).
+      # spiffe_endpoint_socket: "unix:///run/spire/agent-sockets/spire-agent.sock"
+      # Audience embedded in the requested JWT-SVID (aud claim). Must match what
+      # the Artifactory OIDC provider / identity mapping expects.
+      # spiffe_svid_audience: ""
+      # jfrog_oidc_provider_name: ""
+      # Audience requested for the resulting Artifactory token during the OIDC token
+      # exchange. Defaults to "*@*" when unset.
+      # jfrog_token_audience: "*@*"
 
 
 # Update strategy for the daemonset

@@ -71,6 +71,8 @@ data:
     {{- end }}
     {{- else if eq $cloudProvider "azure" }}
     {{- include "jfrog-credential-provider.azureEnvYaml" (dict "item" . "Values" $.Values) | nindent 4 }}
+    {{- else if eq $cloudProvider "spiffe" }}
+    {{- include "jfrog-credential-provider.spiffeEnvYaml" (dict "item" . "Values" $.Values) | nindent 4 }}
     {{- end }}
     {{- else if eq $cloudProvider "aws" }}
     "name": "{{ .name  }}",

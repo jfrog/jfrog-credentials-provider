@@ -87,7 +87,7 @@ Get namespace - uses jfrog-common helper
 
 
 # Outputs the cloud provider type. Since only one cloud provider is supported per installation,
-# this returns the cloudProvider as a string ("aws", "azure", "gcp"), or an empty string if none detected.
+# this returns the cloudProvider as a string ("aws", "azure", "gcp", "spiffe"), or an empty string if none detected.
 {{- define "jfrog-credential-provider.cloudProvider" -}}
 {{- $cloudProvider := "" -}}
 {{- if .Values.providerConfig }}
@@ -95,6 +95,7 @@ Get namespace - uses jfrog-common helper
     {{- if and .aws .aws.enabled }}{{- $cloudProvider = "aws" -}}{{- end }}
     {{- if and .azure .azure.enabled }}{{- $cloudProvider = "azure" -}}{{- end }}
     {{- if and .gcp .gcp.enabled }}{{- $cloudProvider = "gcp" -}}{{- end }}
+    {{- if and .spiffe .spiffe.enabled }}{{- $cloudProvider = "spiffe" -}}{{- end }}
   {{- end }}
 {{- end }}
 {{- $cloudProvider -}}
@@ -228,11 +229,11 @@ Kubelet credential provider config file on OpenShift (targetProviderConfigDir + 
 {{- end }}
 
 {{/*
-True when kubelet credential provider config uses YAML (Azure, GCP, or OpenShift on AWS/Azure)
+True when kubelet credential provider config uses YAML (Azure, GCP, SPIFFE, or OpenShift on AWS/Azure)
 */}}
 {{- define "jfrog-credential-provider.kubeletConfigYaml" -}}
 {{- $cloudProvider := include "jfrog-credential-provider.cloudProvider" . -}}
-{{- if or (eq $cloudProvider "azure") (eq $cloudProvider "gcp") -}}
+{{- if or (eq $cloudProvider "azure") (eq $cloudProvider "gcp") (eq $cloudProvider "spiffe") -}}
 true
 {{- else if and (eq $cloudProvider "aws") (eq (include "jfrog-credential-provider.isOpenShift" .) "true") -}}
 true
@@ -246,7 +247,7 @@ DaemonSet needs host filesystem mount (not AKS-style /var/lib/kubelet only).
 */}}
 {{- define "jfrog-credential-provider.useHostMount" -}}
 {{- $cp := include "jfrog-credential-provider.cloudProvider" . -}}
-{{- if or (eq $cp "aws") (eq $cp "gcp") (eq (include "jfrog-credential-provider.isOpenShiftStaging" .) "true") -}}
+{{- if or (eq $cp "aws") (eq $cp "gcp") (eq $cp "spiffe") (eq (include "jfrog-credential-provider.isOpenShiftStaging" .) "true") -}}
 true
 {{- else -}}
 false
@@ -266,6 +267,8 @@ cloud_provider=aws
 cloud_provider=azure
 {{- else if eq $cp "gcp" -}}
 cloud_provider=google
+{{- else if eq $cp "spiffe" -}}
+cloud_provider=spiffe
 {{- end -}}
 {{- end }}
 
@@ -312,6 +315,41 @@ env:
   {{- end }}
   - name: jfrog_oidc_provider_name
     value: {{ $item.azure.jfrog_oidc_provider_name | quote }}
+  - name: disable_provider_autoupdate
+    value: {{ not $values.autoUpgrade | quote }}
+  - name: log_level
+    value: {{ $values.logLevel | quote }}
+  {{- if $item.http_timeout_seconds }}
+  - name: http_timeout_seconds
+    value: {{ $item.http_timeout_seconds | quote }}
+  {{- end }}
+{{- end }}
+
+{{/*
+SPIFFE env for YAML kubelet config. Fetches a JWT-SVID from the node-local SPIFFE
+Workload API socket and exchanges it via Artifactory OIDC. spiffe_endpoint_socket
+is optional (the SDK falls back to the standard SPIFFE_ENDPOINT_SOCKET).
+*/}}
+{{- define "jfrog-credential-provider.spiffeEnvYaml" -}}
+{{- $item := .item -}}
+{{- $values := .Values -}}
+env:
+  - name: cloud_provider
+    value: "spiffe"
+  - name: artifactory_url
+    value: {{ $item.artifactoryUrl | quote }}
+  {{- if $item.spiffe.spiffe_endpoint_socket }}
+  - name: spiffe_endpoint_socket
+    value: {{ $item.spiffe.spiffe_endpoint_socket | quote }}
+  {{- end }}
+  - name: spiffe_svid_audience
+    value: {{ $item.spiffe.spiffe_svid_audience | quote }}
+  - name: jfrog_oidc_provider_name
+    value: {{ $item.spiffe.jfrog_oidc_provider_name | quote }}
+  {{- if $item.spiffe.jfrog_token_audience }}
+  - name: jfrog_token_audience
+    value: {{ $item.spiffe.jfrog_token_audience | quote }}
+  {{- end }}
   - name: disable_provider_autoupdate
     value: {{ not $values.autoUpgrade | quote }}
   - name: log_level
