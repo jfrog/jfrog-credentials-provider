@@ -5,6 +5,7 @@ metadata:
   namespace: {{ include "jfrog-credential-provider.namespace" . }}
 data:
   {{- $cloudProvider := include "jfrog-credential-provider.cloudProvider" . }}
+  {{- $identityProvider := include "jfrog-credential-provider.identityProvider" . }}
   {{- $kubeletYaml := eq (include "jfrog-credential-provider.kubeletConfigYaml" .) "true" }}
   {{- if $kubeletYaml }}
   jfrog-provider.yaml: |
@@ -19,9 +20,9 @@ data:
     apiVersion: credentialprovider.kubelet.k8s.io/v1
     matchImages: {{ .matchImages | toJson }}
     defaultCacheDuration: {{ .defaultCacheDuration | quote }}
-    {{- if and (eq $cloudProvider "aws") .tokenAttributes .tokenAttributes.enabled }}
+    {{- if and (eq $identityProvider "aws") .tokenAttributes .tokenAttributes.enabled }}
     {{- include "jfrog-credential-provider.awsTokenAttributesYaml" . | nindent 4 }}
-    {{- else if and .tokenAttributes .tokenAttributes.enabled (eq $cloudProvider "azure") }}
+    {{- else if and .tokenAttributes .tokenAttributes.enabled (eq $identityProvider "azure") }}
     tokenAttributes:
       {{- if .azure.azure_app_audience }}
       serviceAccountTokenAudience: {{ .azure.azure_app_audience | quote }}
@@ -34,7 +35,7 @@ data:
         - JFrogExchange
       optionalServiceAccountAnnotationKeys:
         - azure.workload.identity/client-id
-    {{- else if and .tokenAttributes .tokenAttributes.enabled (eq $cloudProvider "gcp") }}
+    {{- else if and .tokenAttributes .tokenAttributes.enabled (eq $identityProvider "gcp") }}
     tokenAttributes:
       {{- if .gcp.jfrog_oidc_audience }}
       serviceAccountTokenAudience: {{ .gcp.jfrog_oidc_audience }}
@@ -47,9 +48,9 @@ data:
         - iam.gke.io/gcp-service-account
         - JFrogExchange
     {{- end }}
-    {{- if eq $cloudProvider "aws" }}
+    {{- if eq $identityProvider "aws" }}
     {{- include "jfrog-credential-provider.awsEnvYaml" (dict "item" . "Values" $.Values "Root" $) | nindent 4 }}
-    {{- else if eq $cloudProvider "gcp" }}
+    {{- else if eq $identityProvider "gcp" }}
     env:
     - name: cloud_provider
       value: "google"
@@ -69,9 +70,62 @@ data:
     - name: http_timeout_seconds
       value: "{{ .http_timeout_seconds }}"
     {{- end }}
-    {{- else if eq $cloudProvider "azure" }}
+    {{- else if eq $identityProvider "azure" }}
     {{- include "jfrog-credential-provider.azureEnvYaml" (dict "item" . "Values" $.Values) | nindent 4 }}
+    {{- else if eq $identityProvider "spiffe" }}
+    {{- include "jfrog-credential-provider.spiffeEnvYaml" (dict "item" . "Values" $.Values) | nindent 4 }}
     {{- end }}
+    {{- else if eq $identityProvider "spiffe" }}
+    "name": "{{ .name }}",
+    "matchImages": {{ .matchImages | toJson }},
+    "defaultCacheDuration": {{ .defaultCacheDuration | toJson }},
+    "apiVersion": "credentialprovider.kubelet.k8s.io/v1",
+
+    "env": [
+    {
+      "name": "cloud_provider",
+      "value": "spiffe"
+    },
+    {
+      "name": "artifactory_url",
+      "value": {{ .artifactoryUrl | toJson }}
+    },
+    {{- if .spiffe.spiffe_endpoint_socket }}
+    {
+      "name": "spiffe_endpoint_socket",
+      "value": {{ .spiffe.spiffe_endpoint_socket | toJson }}
+    },
+    {{- end }}
+    {
+      "name": "spiffe_svid_audience",
+      "value": {{ .spiffe.spiffe_svid_audience | toJson }}
+    },
+    {{- if .spiffe.jfrog_token_audience }}
+    {
+      "name": "jfrog_token_audience",
+      "value": {{ .spiffe.jfrog_token_audience | toJson }}
+    },
+    {{- end }}
+    {{- if .http_timeout_seconds }}
+    {
+      "name": "http_timeout_seconds",
+      "value": "{{ .http_timeout_seconds }}"
+    },
+    {{- end }}
+    {
+      "name": "disable_provider_autoupdate",
+      "value": "{{ not $.Values.autoUpgrade }}"
+    },
+    {
+      "name": "log_level",
+      "value": {{ $.Values.logLevel | toJson }}
+    },
+    {
+      "name": "jfrog_oidc_provider_name",
+      "value": {{ .spiffe.jfrog_oidc_provider_name | toJson }}
+    }
+    ]
+    }
     {{- else if eq $cloudProvider "aws" }}
     "name": "{{ .name  }}",
     "matchImages": {{ .matchImages | toJson }},
