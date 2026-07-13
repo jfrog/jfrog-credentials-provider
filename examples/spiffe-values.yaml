@@ -1,9 +1,11 @@
 # SPIFFE JWT-SVID example values.
 #
-# SPIFFE is cloud-agnostic: this works on any node that exposes a SPIFFE Workload
-# API socket, provided by any SPIFFE implementation (e.g. SPIRE or a vendor — see
-# https://spiffe.io). The credential provider fetches a short-lived JWT-SVID for
-# spiffe_svid_audience and exchanges it with Artifactory via OIDC.
+# SPIFFE is a cloud-agnostic IDENTITY: the credential provider fetches a JWT-SVID
+# from the node-local SPIFFE Workload API (provided by any SPIFFE implementation —
+# e.g. SPIRE or a vendor, see https://spiffe.io) and exchanges it with Artifactory.
+#
+# `spiffe.platform` selects the NODE platform (kubelet paths + config format); it
+# does not change the identity. This example targets EKS (platform: aws).
 #
 # IMPORTANT: Artifactory validates the JWT-SVID as a "Generic OpenID Connect"
 # token, so the SVID's `iss` claim must be an OIDC-discovery-compatible issuer
@@ -17,6 +19,8 @@ providerConfig:
     defaultCacheDuration: 5h
     spiffe:
       enabled: true
+      # Node platform (REQUIRED, no default): aws (EKS) | azure (AKS) | gcp (GKE).
+      platform: aws
       # Path is implementation-specific; the SPIRE default is shown as an example.
       spiffe_endpoint_socket: "unix:///run/spire/agent-sockets/spire-agent.sock"
       spiffe_svid_audience: "<jwt-svid-audience>"

@@ -12,25 +12,6 @@ Because the credential provider binary is executed **on the host by the kubelet*
 
 ---
 
-## ⚠️ Requirement: an OIDC-discoverable issuer (read this first)
-
-This is the **#1 integration failure point**, so configure it before anything else.
-
-Artifactory validates the JWT-SVID as a **"Generic OpenID Connect"** token. To do that it:
-
-1. reads the token's **`iss` (issuer)** claim,
-2. fetches `<iss>/.well-known/openid-configuration` and the JWKS it points to, then
-3. verifies the token signature and claims against that key set.
-
-The [SPIFFE JWT-SVID specification](https://github.com/spiffe/spiffe/blob/main/standards/JWT-SVID.md) does **not** require an `iss` claim, and several implementations omit it by default. **For this feature to work you must:**
-
-- issue JWT-SVIDs that carry an **`iss` claim which is a URL serving OpenID Connect discovery + JWKS** that Artifactory can reach over the network, **and**
-- configure the Artifactory OIDC provider with that **same issuer** URL.
-
-How you turn this on is implementation-specific. For example, SPIRE exposes an [OIDC Discovery Provider](https://github.com/spiffe/spire/blob/main/support/oidc-discovery-provider/README.md) that serves the discovery document and JWKS for the trust domain; other implementations offer an equivalent OIDC endpoint. Consult your implementation's docs and see [spiffe.io](https://spiffe.io).
-
-> **💡 Tip:** Fetch a JWT-SVID (see [Step 4 verification](#-verification)) and decode it (e.g. paste into a JWT decoder or `cut -d. -f2 | base64 -d`). Confirm there is an `iss` claim and that `<iss>/.well-known/openid-configuration` returns JSON from where Artifactory runs.
-
 ### 🔄 How It Works
 
 ```mermaid
@@ -44,7 +25,7 @@ sequenceDiagram
 
     Pod->>Kubelet: Request image pull
     Kubelet->>Plugin: Execute plugin (image matches pattern)
-    Note over Plugin: Runs on the host;<br/>opens the node's Workload API socket
+    Note over Plugin: Runs on the host<br/>Opens the node Workload API socket
     Plugin->>WLAPI: FetchJWTSVID(audience = spiffe_svid_audience)
     WLAPI-->>Plugin: JWT-SVID (sub = SPIFFE ID, aud, iss)
     Plugin->>Artifactory: Exchange JWT-SVID for registry token<br/>(Generic OpenID Connect)
@@ -70,7 +51,7 @@ sequenceDiagram
 
 Before you begin, ensure you have the following:
 
-- A **SPIFFE implementation deployed on your cluster** exposing a Workload API socket on each node that runs the credential provider (e.g. SPIRE agent as a DaemonSet, or a vendor equivalent).
+- A **SPIFFE implementation deployed on your cluster** exposing a Workload API socket on each node that runs the credential provider.
 - An **OIDC discovery endpoint** for your SPIFFE trust domain that Artifactory can reach (see the requirement above).
 - **Access to JFrog Artifactory** with admin permissions.
 - **kubectl** configured to access your cluster.

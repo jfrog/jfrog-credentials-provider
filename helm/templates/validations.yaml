@@ -138,13 +138,24 @@
   {{- end }}
 {{- end }}
 
-{{/* Validate SPIFFE required fields */}}
+{{/* Validate SPIFFE required fields and platform */}}
 {{- range .Values.providerConfig }}
   {{- if and .spiffe .spiffe.enabled }}
     {{- if or (not .spiffe.spiffe_svid_audience) (not .spiffe.jfrog_oidc_provider_name) }}
       {{- $errorMsg := printf "\nERROR: providerConfig '%s' has spiffe.enabled=true but is missing required fields.\n" .name }}
       {{- $errorMsg = printf "%sRequired: spiffe_svid_audience, jfrog_oidc_provider_name.\n" $errorMsg }}
       {{- $errorMsg = printf "%sspiffe_endpoint_socket is optional (falls back to the standard SPIFFE_ENDPOINT_SOCKET). See SPIFFE.md.\n" $errorMsg }}
+      {{- fail $errorMsg }}
+    {{- end }}
+    {{/* spiffe.platform selects the node platform (paths + config format); REQUIRED, no default */}}
+    {{- if not .spiffe.platform }}
+      {{- $errorMsg := printf "\nERROR: providerConfig '%s' has spiffe.enabled=true but spiffe.platform is not set.\n" .name }}
+      {{- $errorMsg = printf "%sspiffe.platform is required: set it to your node OS platform — \"aws\" (EKS), \"azure\" (AKS), or \"gcp\" (GKE).\n" $errorMsg }}
+      {{- $errorMsg = printf "%sIt selects the kubelet paths and config format (JSON/YAML); there is no default.\n" $errorMsg }}
+      {{- fail $errorMsg }}
+    {{- else if not (or (eq .spiffe.platform "aws") (eq .spiffe.platform "azure") (eq .spiffe.platform "gcp")) }}
+      {{- $errorMsg := printf "\nERROR: providerConfig '%s' has an invalid spiffe.platform %q.\n" .name .spiffe.platform }}
+      {{- $errorMsg = printf "%sSupported node platforms are \"aws\" (EKS), \"azure\" (AKS), or \"gcp\" (GKE).\n" $errorMsg }}
       {{- fail $errorMsg }}
     {{- end }}
   {{- end }}

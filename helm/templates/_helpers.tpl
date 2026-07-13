@@ -86,8 +86,11 @@ Get namespace - uses jfrog-common helper
 {{- end }}
 
 
-# Outputs the cloud provider type. Since only one cloud provider is supported per installation,
-# this returns the cloudProvider as a string ("aws", "azure", "gcp", "spiffe"), or an empty string if none detected.
+# Outputs the node PLATFORM ("aws", "azure", "gcp"), which drives node paths, config
+# format (JSON/YAML), and host mount. For the identity-only "spiffe" provider the
+# platform comes from spiffe.platform (required; no default), since SPIFFE is
+# cloud-agnostic and reuses a platform's node wiring. Validated in validations.yaml.
+# See identityProvider for the auth/env axis.
 {{- define "jfrog-credential-provider.cloudProvider" -}}
 {{- $cloudProvider := "" -}}
 {{- if .Values.providerConfig }}
@@ -95,10 +98,27 @@ Get namespace - uses jfrog-common helper
     {{- if and .aws .aws.enabled }}{{- $cloudProvider = "aws" -}}{{- end }}
     {{- if and .azure .azure.enabled }}{{- $cloudProvider = "azure" -}}{{- end }}
     {{- if and .gcp .gcp.enabled }}{{- $cloudProvider = "gcp" -}}{{- end }}
-    {{- if and .spiffe .spiffe.enabled }}{{- $cloudProvider = "spiffe" -}}{{- end }}
+    {{- if and .spiffe .spiffe.enabled }}{{- $cloudProvider = .spiffe.platform -}}{{- end }}
   {{- end }}
 {{- end }}
 {{- $cloudProvider -}}
+{{- end }}
+
+# Outputs the IDENTITY provider ("aws", "azure", "gcp", "spiffe"), which drives the
+# rendered env block and the cloud_provider value passed to the binary. Defaults to
+# the cloudProvider (platform); only diverges when the spiffe block is enabled.
+{{- define "jfrog-credential-provider.identityProvider" -}}
+{{- $spiffe := false -}}
+{{- if .Values.providerConfig }}
+  {{- range .Values.providerConfig }}
+    {{- if and .spiffe .spiffe.enabled }}{{- $spiffe = true -}}{{- end }}
+  {{- end }}
+{{- end }}
+{{- if $spiffe -}}
+spiffe
+{{- else -}}
+{{- include "jfrog-credential-provider.cloudProvider" . -}}
+{{- end -}}
 {{- end }}
 
 {{/*
@@ -229,11 +249,13 @@ Kubelet credential provider config file on OpenShift (targetProviderConfigDir + 
 {{- end }}
 
 {{/*
-True when kubelet credential provider config uses YAML (Azure, GCP, SPIFFE, or OpenShift on AWS/Azure)
+True when kubelet credential provider config uses YAML (Azure, GCP, or OpenShift on AWS/Azure).
+Keyed off the platform (cloudProvider), so SPIFFE inherits its platform's format
+(e.g. spiffe.platform=aws -> EKS -> JSON).
 */}}
 {{- define "jfrog-credential-provider.kubeletConfigYaml" -}}
 {{- $cloudProvider := include "jfrog-credential-provider.cloudProvider" . -}}
-{{- if or (eq $cloudProvider "azure") (eq $cloudProvider "gcp") (eq $cloudProvider "spiffe") -}}
+{{- if or (eq $cloudProvider "azure") (eq $cloudProvider "gcp") -}}
 true
 {{- else if and (eq $cloudProvider "aws") (eq (include "jfrog-credential-provider.isOpenShift" .) "true") -}}
 true
@@ -247,7 +269,7 @@ DaemonSet needs host filesystem mount (not AKS-style /var/lib/kubelet only).
 */}}
 {{- define "jfrog-credential-provider.useHostMount" -}}
 {{- $cp := include "jfrog-credential-provider.cloudProvider" . -}}
-{{- if or (eq $cp "aws") (eq $cp "gcp") (eq $cp "spiffe") (eq (include "jfrog-credential-provider.isOpenShiftStaging" .) "true") -}}
+{{- if or (eq $cp "aws") (eq $cp "gcp") (eq (include "jfrog-credential-provider.isOpenShiftStaging" .) "true") -}}
 true
 {{- else -}}
 false
@@ -260,14 +282,14 @@ OpenShift DaemonSet pods often cannot reach cloud instance metadata → force cl
 GCP values use "gcp"; Go validates as "google".
 */}}
 {{- define "jfrog-credential-provider.addProviderConfigEnvAssignments" -}}
-{{- $cp := include "jfrog-credential-provider.cloudProvider" . -}}
-{{- if eq $cp "aws" -}}
+{{- $ip := include "jfrog-credential-provider.identityProvider" . -}}
+{{- if eq $ip "aws" -}}
 cloud_provider=aws
-{{- else if eq $cp "azure" -}}
+{{- else if eq $ip "azure" -}}
 cloud_provider=azure
-{{- else if eq $cp "gcp" -}}
+{{- else if eq $ip "gcp" -}}
 cloud_provider=google
-{{- else if eq $cp "spiffe" -}}
+{{- else if eq $ip "spiffe" -}}
 cloud_provider=spiffe
 {{- end -}}
 {{- end }}
