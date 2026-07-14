@@ -9,7 +9,7 @@ The JFrog Credential Provider uses Google Service Accounts with OIDC capabilitie
 There are **two authentication methods** available:
 
 - **Option A: Node pool / Node-level identity** — The credential provider uses the GKE node's service account (via the node metadata server). All pods on the node share the same identity when pulling images.
-- **Option B: Workload Identity (Pod-level identity)** — Uses GKE Workload Identity so that the Kubelet provides a Pod's Kubernetes Service Account (KSA) token to the plugin. The plugin exchanges the K8s JWT with GCP for a Google access token, and that identity is used with Artifactory. Image pull permissions are tied to the specific workload.
+- **Option B: Workload Identity (Pod-level identity)** — Uses GKE Workload Identity so that the Kubelet provides a Pod's Kubernetes Service Account (KSA) token to the plugin. The plugin sends the K8s JWT directly to Artifactory, which validates it against the GKE cluster OIDC issuer. Image pull permissions are tied to the specific workload.
 
 For more information about the credential provider architecture, see the [main README](./README.md).
 
@@ -46,7 +46,7 @@ sequenceDiagram
 
 ### 🔄 How It Works — Option B (Workload Identity / Pod-level)
 
-With [KEP-4412](https://kubernetes.io/docs/reference/access-authn-authz/kubelet-credential-provider/) (Pod-level identity), the Kubelet uses the Pod's own ServiceAccount token to authorize image pulls. The JFrog Credential Provider can use GKE Workload Identity: the Kubelet gets a token for the Pod's identity and passes it to the plugin, which exchanges it with GCP and then with Artifactory.
+With [KEP-4412](https://kubernetes.io/docs/reference/access-authn-authz/kubelet-credential-provider/) (Pod-level identity), the Kubelet uses the Pod's own ServiceAccount token to authorize image pulls. The JFrog Credential Provider receives the K8s JWT from the Kubelet and sends it **directly** to Artifactory — no GCP STS exchange is needed. Artifactory validates the token using the GKE cluster as the OIDC issuer.
 
 ```mermaid
 sequenceDiagram
@@ -54,17 +54,14 @@ sequenceDiagram
     participant Kubelet
     participant APIServer as K8s API Server
     participant Plugin as JFrog Credential Provider
-    participant GCP as GCP STS / IAM
     participant Artifactory as JFrog Artifactory
     
     WorkloadPod->>Kubelet: Request image pull
-    Kubelet->>APIServer: Request JWT for audience<br/>identityconfig.googleapis.com
+    Kubelet->>APIServer: Request JWT for audience<br/>&lt;PROJECT_ID&gt;.svc.id.goog
     APIServer-->>Kubelet: Return K8s JWT (Pod's KSA)
     Kubelet->>Plugin: Execute plugin with JWT<br/>and ServiceAccount annotations
-    Plugin->>GCP: Exchange K8s JWT for<br/>Google access token
-    GCP-->>Plugin: Return access token
-    Plugin->>Artifactory: Request registry credential<br/>(with Google identity)
-    Note over Artifactory: Validates identity,<br/>returns pull token
+    Plugin->>Artifactory: Exchange K8s JWT directly<br/>(OIDC token exchange)
+    Note over Artifactory: Validates JWT against<br/>GKE cluster OIDC issuer,<br/>returns pull token
     Artifactory-->>Plugin: Return short-lived registry token
     Plugin-->>Kubelet: Return credential
     Kubelet->>Artifactory: Pull image
@@ -75,8 +72,8 @@ sequenceDiagram
 **Key components (Option B):**
 - **Kubernetes Service Account (KSA)**: The Pod uses a KSA annotated with `iam.gke.io/gcp-service-account` and `JFrogExchange: true`
 - **GKE Workload Identity**: Binds the KSA to a Google Service Account (GSA) in the workload pool (`PROJECT_ID.svc.id.goog`)
-- **TokenAttributes**: Kubelet requests a token with audience `identityconfig.googleapis.com` and passes it to the plugin
-- **JFrog plugin**: Exchanges the K8s JWT with GCP for a Google access token, then with Artifactory for a registry token
+- **TokenAttributes**: Kubelet requests a token with audience `<PROJECT_ID>.svc.id.goog` (set via `jfrog_oidc_audience`) and passes it to the plugin
+- **JFrog plugin**: Sends the K8s JWT directly to Artifactory for a registry token — no GCP STS exchange step
 
 ### Key benefits (especially with Workload Identity — Option B)
 
@@ -253,7 +250,7 @@ gcloud container node-pools create "$NODE_POOL_NAME" \
 
 ## Step 2B: 🔗 GKE Workload Identity Setup (Option B)
 
-For Pod-level identity, enable GKE Workload Identity and bind Kubernetes Service Accounts (KSA) to your Google Service Account (GSA). The Kubelet will then pass the Pod's token to the credential provider, which exchanges it with GCP for a Google access token.
+For Pod-level identity, enable GKE Workload Identity and bind Kubernetes Service Accounts (KSA) to your Google Service Account (GSA). The Kubelet will then pass the Pod's KSA token to the credential provider, which sends it directly to Artifactory for validation against the GKE cluster OIDC issuer.
 
 ### 2B.1 Enable Workload Identity on the cluster
 
@@ -412,7 +409,7 @@ For more information, see the [JFrog Platform Administration documentation on id
 
 ## Step 3B: 🐸 JFrog Artifactory OIDC Configuration (Option B — Workload/Pod Identity)
 
-For Workload Identity, Artifactory must trust the **GKE cluster's OIDC issuer** (the Kubernetes API server), not `accounts.google.com`. The token presented to Artifactory will have been issued by the cluster for the Pod's Service Account; the plugin exchanges the K8s JWT with GCP and then sends the resulting identity to Artifactory. Artifactory's OIDC provider must use the cluster issuer URL and identity mappings that match the K8s token (e.g. `sub` = `system:serviceaccount:<namespace>:<sa-name>`).
+For Workload Identity, Artifactory must trust the **GKE cluster's OIDC issuer** (the Kubernetes API server), not `accounts.google.com`. The Kubelet requests a projected service account token for the Pod's KSA and passes it to the plugin; the plugin sends this K8s JWT **directly** to Artifactory without a GCP STS exchange step. Artifactory validates the token against the GKE cluster OIDC issuer, so the OIDC provider must use the cluster issuer URL and identity mappings that match the K8s token claims (e.g. `sub` = `system:serviceaccount:<namespace>:<sa-name>`, `aud` = `<PROJECT_ID>.svc.id.goog`).
 
 ### 3B.1 Get the GKE cluster OIDC issuer URL
 
@@ -427,10 +424,12 @@ You can also get the cluster's issuer from the cluster spec or from the API serv
 
 Create a separate OIDC provider that uses the GKE cluster as the issuer:
 
+> **ℹ️ Note on audience:** For GKE Workload Identity, set `JFROG_OIDC_AUDIENCE` to `<PROJECT_ID>.svc.id.goog`. This is the GKE Workload Identity pool identifier and the audience the Kubelet will embed in the projected service account token when requesting it from the Kubernetes API server (via `tokenAttributes.serviceAccountTokenAudience`). Using this value ensures compatibility with the `ServiceAccountNodeAudienceRestriction` feature gate (enabled by default in Kubernetes 1.33+), which restricts the Kubelet from requesting tokens for arbitrary audiences.
+
 ```bash
 # Use the same ARTIFACTORY_URL and ARTIFACTORY_ADMIN_TOKEN as in Step 3A
 OIDC_PROVIDER_NAME="gke-workload-identity"   # e.g. kubeletplugingcptest
-JFROG_OIDC_AUDIENCE="artifactory"
+JFROG_OIDC_AUDIENCE="${PROJECT_ID}.svc.id.goog"
 ARTIFACTORY_URL="your-instance.jfrog.io"
 ARTIFACTORY_ADMIN_TOKEN="your-admin-access-token"
 
@@ -450,13 +449,13 @@ curl -X POST "https://$ARTIFACTORY_URL/access/api/v1/oidc" \
 
 ### 3B.3 Create identity mapping (Workload Identity)
 
-Map the Kubernetes Service Account identity to an Artifactory user. The token from the plugin will contain claims such as `sub` (K8s SA), `iss` (cluster URL), and `aud` (your configured audience, e.g. `artifactory`).
+Map the Kubernetes Service Account identity to an Artifactory user. The token from the plugin will contain claims such as `sub` (K8s SA), `iss` (cluster URL), and `aud` (`<PROJECT_ID>.svc.id.goog`).
 
 ```bash
 # Namespace and KSA name that your workload pods use (must match the Pod's serviceAccount)
 NAMESPACE="my-app-namespace"
 K8S_SA_NAME="image-puller-sa"
-# Audience you configure in the credential provider (jfrog_oidc_audience), e.g. "artifactory"
+# Audience must match jfrog_oidc_audience configured in the credential provider
 ARTIFACTORY_USER="gcp-gke-user"  # User that will be mapped to OIDC tokens
 
 curl -X POST "https://$ARTIFACTORY_URL/access/api/v1/oidc/$OIDC_PROVIDER_NAME/identity_mappings" \
@@ -485,7 +484,7 @@ curl -X POST "https://$ARTIFACTORY_URL/access/api/v1/oidc/$OIDC_PROVIDER_NAME/id
 
 - `sub` must match the Kubernetes Service Account: `system:serviceaccount:<namespace>:<service-account-name>`.
 - `iss` must match your GKE cluster OIDC issuer URL exactly.
-- `aud` must match the `jfrog_oidc_audience` value used in the credential provider config (e.g. `artifactory`).
+- `aud` must match the `jfrog_oidc_audience` value used in the credential provider config — use `<PROJECT_ID>.svc.id.goog`.
 - `token_spec.scope` is `applied-permissions/user` for user-scoped tokens.
 - Use a dedicated Artifactory user (or group) and restrict permissions per workload if needed.
 
@@ -493,13 +492,70 @@ curl -X POST "https://$ARTIFACTORY_URL/access/api/v1/oidc/$OIDC_PROVIDER_NAME/id
 
 ### 3B.4 Control plane (API server) and token audience
 
-The Kubernetes API server must be able to issue tokens for the audience used by the plugin (e.g. `artifactory` for GCP exchange). GKE clusters with Workload Identity and a compatible Kubernetes version support this. The token received by the plugin will have:
+The Kubernetes API server must be able to issue tokens for the audience used by the plugin (`<PROJECT_ID>.svc.id.goog`). GKE clusters with Workload Identity and a compatible Kubernetes version support this. The token received by the plugin will have:
 
 - **Subject (`sub`)**: e.g. `system:serviceaccount:jfrog:secret-provi-jfrog-credential-provider` (the Pod's KSA).
 - **Issuer (`iss`)**: Your GKE cluster URL, e.g. `https://container.googleapis.com/v1/projects/jfrog-dev/locations/europe-west1/clusters/helm-public-charts-testing`.
-- **Audience (`aud`)**: The value you set for the Artifactory exchange (e.g. `artifactory`), which you also use in `jfrog_oidc_audience` and in the identity mapping `aud` claim.
+- **Audience (`aud`)**: `<PROJECT_ID>.svc.id.goog` — the GKE Workload Identity pool identifier. This value must match `jfrog_oidc_audience` and the `aud` claim in the Artifactory identity mapping.
 
 No extra control-plane configuration is usually required on GKE beyond enabling Workload Identity and using the correct issuer URL in Artifactory.
+
+### 3B.5 Grant `system:nodes` token-request permission (`ServiceAccountNodeAudienceRestriction`)
+
+Starting with **Kubernetes 1.33**, the `ServiceAccountNodeAudienceRestriction` feature gate is enabled by default. This restricts the Kubelet from requesting service account tokens for audiences that are not explicitly authorized — either via the pod spec or via a ClusterRole.
+
+Prior to Kubernetes 1.33 this restriction was in alpha and the Kubelet could request tokens for arbitrary audiences without any additional RBAC. With the feature enabled you must grant `system:nodes` the `request-serviceaccounts-token-audience` verb for the `<PROJECT_ID>.svc.id.goog` audience, otherwise the Kubelet will be denied when requesting the projected token.
+
+**Option 1 (recommended) — enable RBAC via Helm (handled automatically):**
+
+Set `rbac.create: true` in your Helm values. The chart creates a ClusterRole and ClusterRoleBinding that grants `system:nodes` the required permission for the audience configured in `jfrog_oidc_audience`:
+
+```yaml
+rbac:
+  create: true
+```
+
+Then run:
+
+```bash
+helm upgrade --install secret-provider jfrog/jfrog-credential-provider \
+  --namespace jfrog \
+  --create-namespace \
+  -f ./examples/gcp-projected-service-account-values.yaml
+```
+
+**Option 2 — apply the ClusterRole manually:**
+
+```bash
+# Replace <PROJECT_ID> with your GCP project ID before applying
+kubectl apply -f - <<EOF
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubelet-token-request-gcp-audience
+rules:
+- apiGroups: [""]
+  resources:
+    - "${PROJECT_ID}.svc.id.goog"
+  verbs:
+    - request-serviceaccounts-token-audience
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubelet-token-request-gcp-audience
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kubelet-token-request-gcp-audience
+subjects:
+  - kind: Group
+    name: system:nodes
+    apiGroup: rbac.authorization.k8s.io
+EOF
+```
+
+> **ℹ️ Note:** Only the `CredentialProviderConfig` ConfigMap used by the DaemonSet is updated when you change `jfrog_oidc_audience`. Running `helm upgrade` does not require workload restarts.
 
 ---
 
@@ -526,8 +582,11 @@ Use the values file that matches your chosen option.
 ```bash
 echo "artifactory_url: $ARTIFACTORY_URL"
 echo "google_service_account_email: $SERVICE_ACCOUNT_EMAIL"
-echo "jfrog_oidc_audience: $PROJECT_ID"
 echo "jfrog_oidc_provider_name: $OIDC_PROVIDER_NAME"
+# Option A audience (node-level identity):
+echo "jfrog_oidc_audience: $PROJECT_ID"
+# Option B audience (Workload Identity / KEP-4412):
+echo "jfrog_oidc_audience: ${PROJECT_ID}.svc.id.goog"
 ```
 
 #### Option A (Node-level / Node pool identity)
@@ -551,10 +610,12 @@ Use this when you followed Steps 1 → 2B → 3B. Enable `tokenAttributes` so th
 |---------------------|-------------|---------|
 | `google_service_account_email` | The GSA bound to the KSA (used after K8s JWT exchange) | `jfrog-puller-gsa@project-id.iam.gserviceaccount.com` |
 | `jfrog_oidc_provider_name` | The name of the OIDC provider in Artifactory (GKE issuer) | `gke-workload-identity` |
-| `jfrog_oidc_audience` | Audience in the token sent to Artifactory (e.g. `artifactory`) | `artifactory` |
+| `jfrog_oidc_audience` | The GKE Workload Identity pool audience. The Kubelet requests a projected token with this audience from the K8s API server and it must match the `aud` claim in the Artifactory identity mapping. Required for `ServiceAccountNodeAudienceRestriction` compatibility (K8s 1.33+). | `<PROJECT_ID>.svc.id.goog` |
 | `artifactory_url` | Your JFrog Artifactory URL | `your-instance.jfrog.io` |
 
 Pods that pull images must use a Service Account annotated with `iam.gke.io/gcp-service-account` and `JFrogExchange: true` as in Step 2B.4.
+
+> **⚠️ Important (Kubernetes 1.33+):** Set `rbac.create: true` in your Helm values to grant `system:nodes` permission to request tokens for the `<PROJECT_ID>.svc.id.goog` audience. See [Step 3B.5](#3b5-grant-systemnodes-token-request-permission-serviceaccountnodeaudiencerestriction) for details.
 
 ### 📦 Install with Helm
 
