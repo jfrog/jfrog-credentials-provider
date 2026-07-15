@@ -283,7 +283,15 @@ run_case() {
             cleanup_test_pod "${prev_pod}" "${namespace}" || true
         fi
 
-        deploy_test_pod "${pod_name}" "${namespace}" "${test_image}" "jfrog-test" "${name}" "${projected_token}"
+        # When using a projected SA on AWS we need an IAM role ARN to annotate
+        # the SA for IRSA. Prefer an explicit override, fall back to the node
+        # role ARN we already have for non-AWS providers this is unused.
+        local sa_role_arn=""
+        if [[ "${projected_token}" == "true" && "${provider}" == "aws" ]]; then
+            sa_role_arn="${AWS_PROJECTED_SA_ROLE_ARN:-${AWS_NODE_ROLE_ARN:-}}"
+        fi
+
+        deploy_test_pod "${pod_name}" "${namespace}" "${test_image}" "jfrog-test" "${name}" "${projected_token}" "${sa_role_arn}"
         wait_for_pod "${pod_name}" "${namespace}"
 
         log_info "Step $((i + 1)) PASSED: ${action}"

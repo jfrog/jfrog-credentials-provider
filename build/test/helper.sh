@@ -373,8 +373,11 @@ helm_upgrade() {
 # Pod verification
 # ---------------------------------------------------------------------------
 
-# deploy_test_pod POD_NAME NAMESPACE IMAGE NODE_SELECTOR_KEY NODE_SELECTOR_VALUE
+# deploy_test_pod POD_NAME NAMESPACE IMAGE NODE_SELECTOR_KEY NODE_SELECTOR_VALUE \
+#                 PROJECTED_TOKEN_ENABLED [SA_ROLE_ARN]
 # Creates a minimal pod that pulls from the target Artifactory to validate credentials.
+# When PROJECTED_TOKEN_ENABLED=true, a dedicated ServiceAccount is created and
+# (for AWS/IRSA) annotated with the supplied IAM role ARN.
 deploy_test_pod() {
     local pod_name="$1"
     local namespace="$2"
@@ -382,13 +385,20 @@ deploy_test_pod() {
     local node_selector_key="$4"
     local node_selector_value="$5"
     local projected_token_enabled="$6"
+    local sa_role_arn="${7:-}"
 
+    local service_account_name="default"
     if [[ "${projected_token_enabled}" == "true" ]]; then
-        local service_account_name="projected-sa"
-        kubectl create serviceaccount ${service_account_name} -n ${namespace}
-        kubectl annotate serviceaccount ${service_account_name} -n ${namespace} "eks.amazonaws.com/role-arn=${node_role_arn}"
-    else
-        service_account_name="default"
+        service_account_name="projected-sa"
+        if ! kubectl get sa "${service_account_name}" -n "${namespace}" >/dev/null 2>&1; then
+            kubectl create serviceaccount "${service_account_name}" -n "${namespace}"
+        fi
+        if [[ -n "${sa_role_arn}" ]]; then
+            kubectl annotate serviceaccount "${service_account_name}" -n "${namespace}" \
+                "eks.amazonaws.com/role-arn=${sa_role_arn}" "JFrogExchange=true" --overwrite
+        else
+            log_warn "projectedToken=true but no SA role ARN provided; skipping eks.amazonaws.com/role-arn and JFrogExchange annotations"
+        fi
     fi
 
     log_step "Deploying test pod ${pod_name} in ${namespace} (image: ${image})"
