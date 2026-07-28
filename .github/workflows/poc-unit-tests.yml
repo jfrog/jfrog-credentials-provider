@@ -1,0 +1,61 @@
+name: OIDC Credential Provider PoC - Unit Tests
+# Proves the id_token -> JFrog OIDC token-exchange -> CredentialProviderResponse
+# flow with no managed cluster and no cloud account. See docs/poc-oidc-keycloak-design.md.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: poc-unit-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-tests:
+    name: Pure unit tests (no network, no Docker)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./... -v
+
+  keycloak-integration-test:
+    name: Keycloak-backed generic OIDC flow (config-as-code realm import)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Start Keycloak (realm imported from test/keycloak/realm-export.json)
+        run: docker compose -f test/keycloak/docker-compose.yml up -d
+
+      - name: Test against Keycloak
+        run: go test -tags=keycloak_integration ./internal/handlers/... -run TestGenericOidcFlow_KeycloakBacked -v
+
+      - name: Keycloak logs
+        if: always()
+        run: docker compose -f test/keycloak/docker-compose.yml logs
+
+      - name: Stop Keycloak
+        if: always()
+        run: docker compose -f test/keycloak/docker-compose.yml down -v
