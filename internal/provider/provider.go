@@ -138,8 +138,12 @@ func cloudProviderAuth(svc *service.Service, ctx context.Context, logs *logger.L
 		logs.Debug("Detected Google cloud provider")
 		rtUsername, rtToken = handleGoogleAuth(svc, ctx, logs, artifactoryUrl, request)
 		return rtUsername, rtToken
+	case utils.CloudProviderGeneric:
+		logs.Debug("Detected generic OIDC provider")
+		rtUsername, rtToken = handleGenericAuth(svc, ctx, logs, artifactoryUrl, request)
+		return rtUsername, rtToken
 	default:
-		logs.Exit("ERROR in JFrog Credentials provider, cloud_provider value should be either aws, azure, or google", 1)
+		logs.Exit("ERROR in JFrog Credentials provider, cloud_provider value should be either aws, azure, google, or generic", 1)
 	}
 	return rtUsername, rtToken
 }
@@ -363,8 +367,54 @@ func handleGoogleAuth(svc *service.Service, ctx context.Context, logs *logger.Lo
 	return rtUsername, rtToken
 }
 
-func generateAndOutputResponse(logs *logger.Logger, request utils.CredentialProviderRequest, rtUsername, rtToken string) {
-	response := utils.CredentialProviderResponse{
+// GenericAuth implements the generic / Keycloak OIDC login path: the id_token
+// comes straight from the CredentialProviderRequest (kubelet already obtained
+// it as a bound, audience-scoped service account token), so there is no
+// cloud-specific identity call before the JFrog token exchange.
+//
+// It reports failures as errors rather than terminating the process, so the
+// whole path can be driven by unit tests. handleGenericAuth wraps it for the
+// kubelet entry point, where any failure is fatal.
+//
+// Note that jfrog_oidc_audience serves two distinct purposes here: it is both
+// the audience the id_token was minted for and the audience field of the JFrog
+// token exchange. This mirrors handleGoogleAuth; handleAzureAuth instead keeps
+// them separate (azure_app_audience vs jfrog_token_audience). Deployments whose
+// Artifactory identity mapping expects a different token audience than the IdP
+// audience will need the two split apart.
+func GenericAuth(svc *service.Service, ctx context.Context, logs *logger.Logger, artifactoryUrl string, request utils.CredentialProviderRequest) (string, string, error) {
+	jfrogOidcProviderName := utils.GetEnvs(logs, "jfrog_oidc_provider_name", "")
+	jfrogOidcAudience := utils.GetEnvs(logs, "jfrog_oidc_audience", "")
+	if jfrogOidcProviderName == "" || jfrogOidcAudience == "" {
+		return "", "", fmt.Errorf("environment variables missing: jfrog_oidc_provider_name, jfrog_oidc_audience")
+	}
+
+	token, err := handlers.GetGenericIdentityToken(request)
+	if err != nil {
+		return "", "", fmt.Errorf("could not get generic identity token: %w", err)
+	}
+
+	rtUsername, rtToken, err := handlers.ExchangeOidcArtifactoryToken(svc, ctx, token, artifactoryUrl, jfrogOidcProviderName, jfrogOidcAudience)
+	if err != nil {
+		return "", "", fmt.Errorf("error in createArtifactoryToken: %w", err)
+	}
+	return rtUsername, rtToken, nil
+}
+
+func handleGenericAuth(svc *service.Service, ctx context.Context, logs *logger.Logger, artifactoryUrl string, request utils.CredentialProviderRequest) (string, string) {
+	rtUsername, rtToken, err := GenericAuth(svc, ctx, logs, artifactoryUrl, request)
+	if err != nil {
+		logs.Exit("ERROR in JFrog Credentials provider, "+err.Error(), 1)
+	}
+	return rtUsername, rtToken
+}
+
+// BuildCredentialProviderResponse builds the CredentialProviderResponse for a
+// given request and exchanged Artifactory credentials. Exported (and kept
+// side-effect free) so unit tests can assert on it directly without going
+// through stdin/stdout.
+func BuildCredentialProviderResponse(request utils.CredentialProviderRequest, rtUsername, rtToken string) utils.CredentialProviderResponse {
+	return utils.CredentialProviderResponse{
 		ApiVersion:   "credentialprovider.kubelet.k8s.io/v1",
 		Kind:         "CredentialProviderResponse",
 		CacheKeyType: "Registry",
@@ -377,6 +427,10 @@ func generateAndOutputResponse(logs *logger.Logger, request utils.CredentialProv
 			},
 		},
 	}
+}
+
+func generateAndOutputResponse(logs *logger.Logger, request utils.CredentialProviderRequest, rtUsername, rtToken string) {
+	response := BuildCredentialProviderResponse(request, rtUsername, rtToken)
 	jsonBytes, err := json.Marshal(response)
 	if err != nil {
 		logs.Exit("Error marshaling JSON :"+err.Error(), 1)

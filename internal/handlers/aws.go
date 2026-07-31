@@ -80,6 +80,42 @@ type SecretResult struct {
 	ClientId     string `json:"client-id"`
 }
 
+// WebIdentitySTSAPI is the subset of the AWS STS client used by the IRSA flow.
+// It allows deterministic unit tests without changing the default production client.
+type WebIdentitySTSAPI interface {
+	AssumeRoleWithWebIdentity(context.Context, *sts.AssumeRoleWithWebIdentityInput, ...func(*sts.Options)) (*sts.AssumeRoleWithWebIdentityOutput, error)
+}
+
+// AssumeRoleSTSAPI is the subset of the AWS STS client used by the external-role flow.
+type AssumeRoleSTSAPI interface {
+	AssumeRole(context.Context, *sts.AssumeRoleInput, ...func(*sts.Options)) (*sts.AssumeRoleOutput, error)
+}
+
+// SecretsManagerAPI is the subset of Secrets Manager used by the Cognito flow.
+type SecretsManagerAPI interface {
+	GetSecretValue(context.Context, *secretsmanager.GetSecretValueInput, ...func(*secretsmanager.Options)) (*secretsmanager.GetSecretValueOutput, error)
+}
+
+// CognitoAPI is the subset of Cognito used to discover a user pool and resource server.
+type CognitoAPI interface {
+	ListUserPools(context.Context, *cognitoidentityprovider.ListUserPoolsInput, ...func(*cognitoidentityprovider.Options)) (*cognitoidentityprovider.ListUserPoolsOutput, error)
+	DescribeUserPool(context.Context, *cognitoidentityprovider.DescribeUserPoolInput, ...func(*cognitoidentityprovider.Options)) (*cognitoidentityprovider.DescribeUserPoolOutput, error)
+	ListResourceServers(context.Context, *cognitoidentityprovider.ListResourceServersInput, ...func(*cognitoidentityprovider.Options)) (*cognitoidentityprovider.ListResourceServersOutput, error)
+}
+
+// AWSSTSClients contains optional SDK clients for unit testing STS-backed flows.
+// Nil fields preserve the existing production behavior and create real AWS clients.
+type AWSSTSClients struct {
+	WebIdentity WebIdentitySTSAPI
+	AssumeRole  AssumeRoleSTSAPI
+}
+
+// AWSOIDCClients contains the SDK clients needed by the Cognito OIDC flow.
+type AWSOIDCClients struct {
+	SecretsManager SecretsManagerAPI
+	Cognito        CognitoAPI
+}
+
 func GetAwsOidcToken(s *service.Service, ctx context.Context, awsRoleName, secretName, userPoolName, resourceServerName, scope string) (string, error) {
 	s.Logger.Info("running aws oidc auth flow")
 
@@ -111,6 +147,31 @@ func GetAwsOidcToken(s *service.Service, ctx context.Context, awsRoleName, secre
 	return requestOidcToken(s, ctx, secretResult, resourceServerId, userPoolResourceDomain, scope, region)
 }
 
+// GetAwsOidcTokenWithClients runs the Cognito OIDC flow with injected AWS SDK clients.
+// The IMDS and OIDC HTTP requests still use Service.Client.
+func GetAwsOidcTokenWithClients(s *service.Service, ctx context.Context, secretName, userPoolName, resourceServerName, scope string, clients AWSOIDCClients) (string, error) {
+	if clients.SecretsManager == nil || clients.Cognito == nil {
+		return "", fmt.Errorf("Cognito OIDC test clients must include SecretsManager and Cognito")
+	}
+	token, err := getToken(s, ctx)
+	if err != nil {
+		return "", fmt.Errorf("error getting aws token: %v", err)
+	}
+	region, err := getRegionOrDefault(s, ctx, token)
+	if err != nil {
+		return "", err
+	}
+	secretResult, err := getSecretFromManagerWithClient(s, secretName, clients.SecretsManager)
+	if err != nil {
+		return "", err
+	}
+	resourceServerID, domain, err := getResourceServerIDWithClient(s, clients.Cognito, userPoolName, resourceServerName)
+	if err != nil {
+		return "", err
+	}
+	return requestOidcToken(s, ctx, secretResult, resourceServerID, domain, scope, region)
+}
+
 func getRegionOrDefault(s *service.Service, ctx context.Context, token string) (string, error) {
 	region, err := getAWSRegion(s, ctx, token)
 	if err != nil {
@@ -128,12 +189,19 @@ func getSecretFromManager(s *service.Service, secretName, region string) (Secret
 	}
 
 	svc := secretsmanager.NewFromConfig(config)
+	return getSecretFromManagerWithClient(s, secretName, svc)
+}
+
+func getSecretFromManagerWithClient(s *service.Service, secretName string, client SecretsManagerAPI) (SecretResult, error) {
 	input := &secretsmanager.GetSecretValueInput{
 		SecretId: aws.String(secretName),
 	}
-	result, err := svc.GetSecretValue(context.TODO(), input)
+	result, err := client.GetSecretValue(context.TODO(), input)
 	if err != nil {
 		return SecretResult{}, fmt.Errorf("error getting the secret from secret manager: %v", err)
+	}
+	if result.SecretString == nil {
+		return SecretResult{}, fmt.Errorf("secret manager returned an empty secret string")
 	}
 
 	var secretResult SecretResult
@@ -200,6 +268,15 @@ func GetAWSWebIdentityCredentials(s *service.Service, ctx context.Context,
 
 	// Create STS client
 	stsClient := sts.NewFromConfig(cfg)
+	return GetAWSWebIdentityCredentialsWithClient(s, ctx, serviceAccountToken, roleArn, stsClient)
+}
+
+// GetAWSWebIdentityCredentialsWithClient runs the IRSA exchange using an injected STS client.
+func GetAWSWebIdentityCredentialsWithClient(s *service.Service, ctx context.Context,
+	serviceAccountToken string, roleArn string, stsClient WebIdentitySTSAPI) (*types.Credentials, error) {
+	if stsClient == nil {
+		return nil, fmt.Errorf("web identity STS client is required")
+	}
 
 	// Prepare the AssumeRoleWithWebIdentity input
 	input := &sts.AssumeRoleWithWebIdentityInput{
@@ -229,6 +306,12 @@ func GetAWSWebIdentityCredentials(s *service.Service, ctx context.Context,
 }
 
 func GetAWSSignedRequest(s *service.Service, ctx context.Context, serviceAccountToken string, awsEnvVariables utils.AWSEnvVariables) (*http.Request, error) {
+	return GetAWSSignedRequestWithClients(s, ctx, serviceAccountToken, awsEnvVariables, AWSSTSClients{})
+}
+
+// GetAWSSignedRequestWithClients creates the AWS identity request with optional
+// injected STS clients. Empty clients retain the existing production behavior.
+func GetAWSSignedRequestWithClients(s *service.Service, ctx context.Context, serviceAccountToken string, awsEnvVariables utils.AWSEnvVariables, clients AWSSTSClients) (*http.Request, error) {
 	s.Logger.Info("running aws assume role auth flow")
 	// get token from metadata service
 	token, err := getToken(s, ctx)
@@ -264,7 +347,11 @@ func GetAWSSignedRequest(s *service.Service, ctx context.Context, serviceAccount
 		}
 	case "assume_external_role":
 		// get temp credentials by assuming role
-		credentials, err = assumeRoleAndGetCredentials(s, ctx, awsEnvVariables.AWSExternalRoleDurationSeconds, awsEnvVariables.AWSExternalRoleARN, region)
+		if clients.AssumeRole == nil {
+			credentials, err = assumeRoleAndGetCredentials(s, ctx, awsEnvVariables.AWSExternalRoleDurationSeconds, awsEnvVariables.AWSExternalRoleARN, region)
+		} else {
+			credentials, err = assumeRoleAndGetCredentialsWithClient(s, ctx, awsEnvVariables.AWSExternalRoleDurationSeconds, awsEnvVariables.AWSExternalRoleARN, region, clients.AssumeRole)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("assumeRoleAndGetCredentials returned err %v", err)
 		}
@@ -274,7 +361,12 @@ func GetAWSSignedRequest(s *service.Service, ctx context.Context, serviceAccount
 		}
 	default:
 		// Get temporary credentials using WebIdentity
-		credentialsWebIdentity, err := GetAWSWebIdentityCredentials(s, ctx, serviceAccountToken, awsEnvVariables.AWSRoleName, region)
+		var credentialsWebIdentity *types.Credentials
+		if clients.WebIdentity == nil {
+			credentialsWebIdentity, err = GetAWSWebIdentityCredentials(s, ctx, serviceAccountToken, awsEnvVariables.AWSRoleName, region)
+		} else {
+			credentialsWebIdentity, err = GetAWSWebIdentityCredentialsWithClient(s, ctx, serviceAccountToken, awsEnvVariables.AWSRoleName, clients.WebIdentity)
+		}
 		if err != nil {
 			return nil, fmt.Errorf("Error getting web identity credentials: %v", err)
 		}
@@ -373,6 +465,39 @@ func assumeRoleAndGetCredentials(s *service.Service, ctx context.Context, awsExt
 	}, nil
 
 }
+
+func assumeRoleAndGetCredentialsWithClient(s *service.Service, ctx context.Context, durationSeconds int, roleARN, region string, client AssumeRoleSTSAPI) (TempCredentials, error) {
+	if region == "" || region == "*" {
+		return TempCredentials{}, fmt.Errorf("assume_external_role requires a valid AWS region; got %q (set aws_region env var)", region)
+	}
+	result, err := client.AssumeRole(ctx, &sts.AssumeRoleInput{
+		RoleArn:         aws.String(roleARN),
+		RoleSessionName: aws.String("jfrog-credential-provider-" + utils.RandString(10)),
+		DurationSeconds: aws.Int32(int32(durationSeconds)),
+	})
+	if err != nil {
+		s.Logger.Error("failed to get creds from STS :" + err.Error())
+		return TempCredentials{}, err
+	}
+	if result.Credentials == nil || result.Credentials.AccessKeyId == nil ||
+		result.Credentials.SecretAccessKey == nil || result.Credentials.SessionToken == nil {
+		return TempCredentials{}, fmt.Errorf("STS AssumeRole returned incomplete credentials")
+	}
+	expiration := ""
+	if result.Credentials.Expiration != nil {
+		expiration = result.Credentials.Expiration.UTC().Format(time.RFC3339)
+	}
+	return TempCredentials{
+		Code:            CREDENTIALS_SUCCESS_CODE,
+		LastUpdated:     time.Now().UTC().Format(time.RFC3339),
+		TokenType:       CREDENTIALS_TOKEN_TYPE,
+		AccessKeyId:     *result.Credentials.AccessKeyId,
+		SecretAccessKey: *result.Credentials.SecretAccessKey,
+		Token:           *result.Credentials.SessionToken,
+		Expiration:      expiration,
+	}, nil
+}
+
 func getTempCredentials(s *service.Service, ctx context.Context, token string, awsRoleName string) (TempCredentials, error) {
 	s.Logger.Info("TEMP_SESSION_URL :" + TOKEN_URL)
 	// Create a new request
@@ -434,8 +559,7 @@ func getAWSRegion(s *service.Service, ctx context.Context, token string) (string
 	return string(body), nil
 }
 
-func getUserPoolId(s *service.Service, cfg aws.Config,
-	cognitoSvc *cognitoidentityprovider.Client, userPoolName string) (string, error) {
+func getUserPoolId(s *service.Service, cognitoSvc CognitoAPI, userPoolName string) (string, error) {
 	s.Logger.Info("getting user pool id")
 	// Initialize the pagination variables
 	var nextToken *string
@@ -473,7 +597,12 @@ func getResourceServerId(s *service.Service, cfg aws.Config, userPoolName string
 
 	// getting resource domain from cognito
 	cognitoSvc := cognitoidentityprovider.NewFromConfig(cfg)
-	userPoolId, err := getUserPoolId(s, cfg, cognitoSvc, userPoolName)
+	return getResourceServerIDWithClient(s, cognitoSvc, userPoolName, resourceServerName)
+}
+
+func getResourceServerIDWithClient(s *service.Service, cognitoSvc CognitoAPI, userPoolName string, resourceServerName string) (string, string, error) {
+	s.Logger.Info("getting resource server :" + resourceServerName + " id for user pool" + userPoolName)
+	userPoolId, err := getUserPoolId(s, cognitoSvc, userPoolName)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to get user pool id: %v", err)
 	}
