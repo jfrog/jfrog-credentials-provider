@@ -1,0 +1,17 @@
+# Dependabot version updates for Go modules.
+# Each run creates dependabot/go_modules/* branches and opens PRs against main.
+version: 2
+updates:
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    # Group routine bumps into one weekly PR so go.mod / go.sum stay healthy.
+    # Major upgrades still open as individual PRs for review.
+    groups:
+      go:
+        update-types:
+          - minor
+          - patch
