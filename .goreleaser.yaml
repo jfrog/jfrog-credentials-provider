@@ -1,0 +1,33 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+# Disable release creation for now
+release:
+  disable: true
+
+builds:
+  - env: ["CGO_ENABLED=0"]
+    binary: jfrog-credential-provider
+    goos:
+      # - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+kos:
+  - base_image: releases-docker.jfrog.io/jfrog/alpine-with-tools:3.21.0
+    repositories:
+      - to-be-defined.example.com/jfrog-credential-provider
+    tags:
+      - "{{.Version}}"
+      # - latest
+
+    bare: true
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    sbom: none
