@@ -194,3 +194,5 @@ serviceAccount:
   name: ""
   annotations: {}
 
+# Run the Pod in host network mode (can solve chicken-egg issue to pull the CNI container images)
+hostNetwork: false
