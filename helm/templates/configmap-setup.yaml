@@ -125,7 +125,7 @@ data:
         fi
         DOWNLOAD_STATUS=0
         {{- end }}
-    elif [ -n "${JFROG_CREDENTIAL_PROVIDER_BINARY_URL}" ]; then
+    else
         # Build curl authentication arguments
         CURL_AUTH_ARGS=()
         if [ -n "${DOWNLOAD_ACCESS_TOKEN}" ]; then
@@ -163,10 +163,6 @@ data:
         curl -L -f "${CURL_AUTH_ARGS[@]}" -o ${KUBELET_MOUNT_PATH}${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/{{ .name }} "${JFROG_CREDENTIAL_PROVIDER_BINARY_URL}"
         DOWNLOAD_STATUS=$?
         {{- end }}
-    else
-        log "Neither LOCAL_BINARY_HOST_PATH nor JFROG_CREDENTIAL_PROVIDER_BINARY_URL set; using binary from pre-baked container image"
-        cp /ko-app/jfrog-credential-provider "${KUBELET_MOUNT_PATH}${JFROG_CREDENTIAL_PROVIDER_BINARY_DIR}/jfrog-credentials-provider"
-        DOWNLOAD_STATUS=0
     fi
 
     if [[ ${DOWNLOAD_STATUS} -ne 0 ]]; then
