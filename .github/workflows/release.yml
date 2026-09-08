@@ -16,6 +16,7 @@ jobs:
     runs-on: self-hosted
     permissions:
       contents: write 
+      packages: write # Push to ghcr.io
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
