@@ -5,10 +5,6 @@ before:
   hooks:
     - go mod tidy
 
-# Disable release creation for now
-release:
-  disable: true
-
 builds:
   - id: build-credential-provider
     env:
