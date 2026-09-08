@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 version: 2
 
 before:
@@ -9,40 +10,49 @@ release:
   disable: true
 
 builds:
-  - env: ["CGO_ENABLED=0"]
+  - id: build-credential-provider
+    env:
+      - "CGO_ENABLED=0"
     binary: jfrog-credential-provider
     goos:
-      # - darwin
       - linux
     goarch:
       - amd64
       - arm64
+    ldflags:
+      - -X main.version={{ .Version }}
 
-## Ko-build doesn't work since the path of the binary is always /ko-app/jfrog-credential-provider for all 
-## architectures and the download script of the helm chart will append the suffix "-<ARCH_SUFFIX>" on the download url.
-## See /helm/templates/configmap-setup.yaml for more details.
-# kos:
-#   - base_image: releases-docker.jfrog.io/jfrog/alpine-with-tools:3.21.0
-#     repositories:
-#       - to-be-defined.example.com/jfrog-credential-provider
-#     tags:
-#       - "{{.Version}}"
-#       # - latest
+# Do not archive, upload binary only
+archives:
+  - id: archive-credential-provider
+    formats: ["binary"]
+    name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
 
-#     # Bare uses a tag on the $KO_DOCKER_REPO without anything additional.
-#     bare: true
-#     # preserve_import_paths: false
-#     platforms:
-#       - linux/amd64
-#       - linux/arm64
-#     sbom: none
+signs:
+  - id: binary
+    artifacts: binary
+    signature: "${artifact}.asc"
+    cmd: gpg
+    args:
+      - "--batch"
+      - "--yes"
+      - "--pinentry-mode=loopback"
+      - "--passphrase-fd"
+      - "0"
+      - "--detach-sign"
+      - "--armor"
+      - "${artifact}"
+    stdin: "{{ .Env.GPG_PASSPHRASE }}"
+    ids:
+      - archive-credential-provider
+    output: true
 
 dockers_v2:
   - dockerfile: Dockerfile.goreleaser
     images:
       - to-be-defined.example.com/jfrog-credential-provider
     tags:
-      - "{{ .Version }}-SNAPSHOT"
+      - "{{ .Version }}"
       # - latest
     platforms:
       - linux/amd64

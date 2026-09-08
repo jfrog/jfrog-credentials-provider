@@ -18,19 +18,12 @@ jobs:
       contents: write 
     steps:
       - name: Set up Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: '1.23'
+          go-version-file: 'go.mod'
 
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Build
-        env:
-          VERSION: ${{ github.event.inputs.tag }}
-        run: |
-          cd build/
-          make build-all
 
       - name: Import GPG Private Key
         run: |
@@ -38,20 +31,11 @@ jobs:
         env:
           GPG_SIGNING_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
 
-      - name: Sign Binaries
-        run: |
-          cd build/bin/
-          echo "${{ secrets.GPG_PASSPHRASE }}" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 --detach-sign --armor jfrog-credential-provider-linux-amd64
-          echo "${{ secrets.GPG_PASSPHRASE }}" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 --detach-sign --armor jfrog-credential-provider-linux-arm64
-
-      - name: Upload release artifacts
-        uses: softprops/action-gh-release@v2
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
-          tag_name: ${{ github.event.inputs.tag }}
-          generate_release_notes: true
-          files: |
-            build/bin/jfrog-credential-provider-linux-amd64
-            build/bin/jfrog-credential-provider-linux-arm64
-            build/bin/jfrog-credential-provider-linux-amd64.asc
-            build/bin/jfrog-credential-provider-linux-arm64.asc
-    
+          distribution: goreleaser
+          version: '~> v2'
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
