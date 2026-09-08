@@ -1,0 +1,5 @@
+FROM releases-docker.jfrog.io/jfrog/alpine-with-tools:3.21.0
+ARG TARGETPLATFORM
+ARG TARGETARCH
+
+COPY $TARGETPLATFORM/jfrog-credential-provider /opt/jfrog-credential-provider-${TARGETARCH}

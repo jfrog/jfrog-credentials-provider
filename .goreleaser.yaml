@@ -1,0 +1,61 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: build-credential-provider
+    env:
+      - "CGO_ENABLED=0"
+    binary: jfrog-credential-provider
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -X main.version={{ .Version }}
+
+# Do not archive, upload binary only
+archives:
+  - id: archive-credential-provider
+    formats: ["binary"]
+    name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
+
+signs:
+  - id: binary
+    artifacts: binary
+    signature: "${artifact}.asc"
+    cmd: gpg
+    args:
+      - "--batch"
+      - "--yes"
+      - "--pinentry-mode=loopback"
+      - "--passphrase-fd"
+      - "0"
+      - "--detach-sign"
+      - "--armor"
+      - "${artifact}"
+    stdin: "{{ .Env.GPG_PASSPHRASE }}"
+    ids:
+      - archive-credential-provider
+    output: true
+
+dockers_v2:
+  - dockerfile: Dockerfile.goreleaser
+    images:
+      - to-be-defined.example.com/jfrog-credential-provider
+    tags:
+      - "{{ .Version }}"
+      # - latest
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      org.opencontainers.image.title: jfrog-credentials-provider
+      org.opencontainers.image.source: https://github.com/jfrog/jfrog-credentials-provider
+      org.opencontainers.image.version: v{{ .Version }}
+      org.opencontainers.image.revision: "{{ .FullCommit }}"
+      org.opencontainers.image.licenses: Apache-2.0
