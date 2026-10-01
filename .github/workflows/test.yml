@@ -92,7 +92,6 @@ jobs:
           name: terraform-context-for-manual-cleanup-aws
           path: |
             terraform-ci/**/*.tf
-            terraform-ci/jfrog/* 
             terraform-ci/terraform.tfstate
             terraform-ci/terraform.tfstate.backup
             terraform-ci/terraform.tfvars
@@ -167,7 +166,6 @@ jobs:
           name: terraform-context-for-manual-cleanup-azure
           path: |
             terraform-ci/**/*.tf
-            terraform-ci/jfrog/* 
             terraform-ci/terraform.tfstate
             terraform-ci/terraform.tfstate.backup
             terraform-ci/terraform.tfvars
