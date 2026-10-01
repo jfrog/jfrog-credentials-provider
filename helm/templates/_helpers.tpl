@@ -86,8 +86,11 @@ Get namespace - uses jfrog-common helper
 {{- end }}
 
 
-# Outputs the cloud provider type. Since only one cloud provider is supported per installation,
-# this returns the cloudProvider as a string ("aws", "azure", "gcp"), or an empty string if none detected.
+# Outputs the node PLATFORM ("aws", "azure", "gcp"), which drives node paths, config
+# format (JSON/YAML), and host mount. For the identity-only "spiffe" provider the
+# platform comes from spiffe.platform (required; no default), since SPIFFE is
+# cloud-agnostic and reuses a platform's node wiring. Validated in validations.yaml.
+# See identityProvider for the auth/env axis.
 {{- define "jfrog-credential-provider.cloudProvider" -}}
 {{- $cloudProvider := "" -}}
 {{- if .Values.providerConfig }}
@@ -95,9 +98,27 @@ Get namespace - uses jfrog-common helper
     {{- if and .aws .aws.enabled }}{{- $cloudProvider = "aws" -}}{{- end }}
     {{- if and .azure .azure.enabled }}{{- $cloudProvider = "azure" -}}{{- end }}
     {{- if and .gcp .gcp.enabled }}{{- $cloudProvider = "gcp" -}}{{- end }}
+    {{- if and .spiffe .spiffe.enabled }}{{- $cloudProvider = .spiffe.platform -}}{{- end }}
   {{- end }}
 {{- end }}
 {{- $cloudProvider -}}
+{{- end }}
+
+# Outputs the IDENTITY provider ("aws", "azure", "gcp", "spiffe"), which drives the
+# rendered env block and the cloud_provider value passed to the binary. Defaults to
+# the cloudProvider (platform); only diverges when the spiffe block is enabled.
+{{- define "jfrog-credential-provider.identityProvider" -}}
+{{- $spiffe := false -}}
+{{- if .Values.providerConfig }}
+  {{- range .Values.providerConfig }}
+    {{- if and .spiffe .spiffe.enabled }}{{- $spiffe = true -}}{{- end }}
+  {{- end }}
+{{- end }}
+{{- if $spiffe -}}
+spiffe
+{{- else -}}
+{{- include "jfrog-credential-provider.cloudProvider" . -}}
+{{- end -}}
 {{- end }}
 
 {{/*
@@ -228,7 +249,9 @@ Kubelet credential provider config file on OpenShift (targetProviderConfigDir + 
 {{- end }}
 
 {{/*
-True when kubelet credential provider config uses YAML (Azure, GCP, or OpenShift on AWS/Azure)
+True when kubelet credential provider config uses YAML (Azure, GCP, or OpenShift on AWS/Azure).
+Keyed off the platform (cloudProvider), so SPIFFE inherits its platform's format
+(e.g. spiffe.platform=aws -> EKS -> JSON).
 */}}
 {{- define "jfrog-credential-provider.kubeletConfigYaml" -}}
 {{- $cloudProvider := include "jfrog-credential-provider.cloudProvider" . -}}
@@ -259,13 +282,15 @@ OpenShift DaemonSet pods often cannot reach cloud instance metadata → force cl
 GCP values use "gcp"; Go validates as "google".
 */}}
 {{- define "jfrog-credential-provider.addProviderConfigEnvAssignments" -}}
-{{- $cp := include "jfrog-credential-provider.cloudProvider" . -}}
-{{- if eq $cp "aws" -}}
+{{- $ip := include "jfrog-credential-provider.identityProvider" . -}}
+{{- if eq $ip "aws" -}}
 cloud_provider=aws
-{{- else if eq $cp "azure" -}}
+{{- else if eq $ip "azure" -}}
 cloud_provider=azure
-{{- else if eq $cp "gcp" -}}
+{{- else if eq $ip "gcp" -}}
 cloud_provider=google
+{{- else if eq $ip "spiffe" -}}
+cloud_provider=spiffe
 {{- end -}}
 {{- end }}
 
@@ -312,6 +337,41 @@ env:
   {{- end }}
   - name: jfrog_oidc_provider_name
     value: {{ $item.azure.jfrog_oidc_provider_name | quote }}
+  - name: disable_provider_autoupdate
+    value: {{ not $values.autoUpgrade | quote }}
+  - name: log_level
+    value: {{ $values.logLevel | quote }}
+  {{- if $item.http_timeout_seconds }}
+  - name: http_timeout_seconds
+    value: {{ $item.http_timeout_seconds | quote }}
+  {{- end }}
+{{- end }}
+
+{{/*
+SPIFFE env for YAML kubelet config. Fetches a JWT-SVID from the node-local SPIFFE
+Workload API socket and exchanges it via Artifactory OIDC. spiffe_endpoint_socket
+is optional (the SDK falls back to the standard SPIFFE_ENDPOINT_SOCKET).
+*/}}
+{{- define "jfrog-credential-provider.spiffeEnvYaml" -}}
+{{- $item := .item -}}
+{{- $values := .Values -}}
+env:
+  - name: cloud_provider
+    value: "spiffe"
+  - name: artifactory_url
+    value: {{ $item.artifactoryUrl | quote }}
+  {{- if $item.spiffe.spiffe_endpoint_socket }}
+  - name: spiffe_endpoint_socket
+    value: {{ $item.spiffe.spiffe_endpoint_socket | quote }}
+  {{- end }}
+  - name: spiffe_svid_audience
+    value: {{ $item.spiffe.spiffe_svid_audience | quote }}
+  - name: jfrog_oidc_provider_name
+    value: {{ $item.spiffe.jfrog_oidc_provider_name | quote }}
+  {{- if $item.spiffe.jfrog_token_audience }}
+  - name: jfrog_token_audience
+    value: {{ $item.spiffe.jfrog_token_audience | quote }}
+  {{- end }}
   - name: disable_provider_autoupdate
     value: {{ not $values.autoUpgrade | quote }}
   - name: log_level

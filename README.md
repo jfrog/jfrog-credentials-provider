@@ -129,6 +129,7 @@ Choose your cloud provider to get started:
 | 🔴 **OpenShift (AWS / Azure)** | [OpenShift Setup Guide](./OpenShift.md) | ✅ Supported (**OpenShift 4.21+ required**) |
 | 🔷 **Azure AKS** | [Azure Setup Guide](./AZURE.md) | ✅ Supported |
 | 🔵 **GCP GKE** | [GCP Setup Guide](./GCP.md) | ✅ Supported |
+| 🔐 **SPIFFE (any platform)** | [SPIFFE Setup Guide](./SPIFFE.md) | ✅ Supported |
 
 </div>
 
@@ -217,4 +218,5 @@ For detailed debugging instructions, troubleshooting steps, and common issues, s
 - [🔴 OpenShift Setup Guide](./OpenShift.md) - OpenShift on AWS and Azure with projected service accounts
 - [🔷 Azure Setup Guide](./AZURE.md) - Complete Azure AKS setup instructions
 - [🔵 GCP Setup Guide](./GCP.md) - Complete GCP GKE setup instructions
+- [🔐 SPIFFE Setup Guide](./SPIFFE.md) - Cloud-agnostic setup using SPIFFE JWT-SVIDs
 - [🐛 Debug Documentation](./debug.md) - Troubleshooting and debugging guide

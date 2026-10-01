@@ -98,6 +98,13 @@ func getCloudProvider(svc *service.Service, ctx context.Context, logs *logger.Lo
 	cloudProvider := utils.GetEnvs(logs, "cloud_provider", "")
 	logs.Info("cloud_provider from env:" + cloudProvider)
 	if cloudProvider == "" {
+		// SPIFFE is cloud-agnostic and typically runs on cloud nodes (where the
+		// metadata probes below would also match), so it must be detected first
+		// and win when a SPIFFE Workload API socket is configured on the node.
+		if isSpiffe, _ := handlers.CheckIfSpiffe(svc, ctx); isSpiffe {
+			logs.Info("Detected SPIFFE Workload API socket")
+			return utils.CloudProviderSpiffe
+		}
 		// if cloud_provider is not set, check if the cloud provider is AWS, Azure, or Google
 		isAWS, errAWS := handlers.CheckIfAWS(svc, ctx)
 		if isAWS {
@@ -138,8 +145,12 @@ func cloudProviderAuth(svc *service.Service, ctx context.Context, logs *logger.L
 		logs.Debug("Detected Google cloud provider")
 		rtUsername, rtToken = handleGoogleAuth(svc, ctx, logs, artifactoryUrl, request)
 		return rtUsername, rtToken
+	case utils.CloudProviderSpiffe:
+		logs.Debug("Detected SPIFFE provider")
+		rtUsername, rtToken = handleSpiffeAuth(svc, ctx, logs, artifactoryUrl, request)
+		return rtUsername, rtToken
 	default:
-		logs.Exit("ERROR in JFrog Credentials provider, cloud_provider value should be either aws, azure, or google", 1)
+		logs.Exit("ERROR in JFrog Credentials provider, cloud_provider value should be either aws, azure, google, or spiffe", 1)
 	}
 	return rtUsername, rtToken
 }
@@ -357,6 +368,38 @@ func handleGoogleAuth(svc *service.Service, ctx context.Context, logs *logger.Lo
 
 	// Exchange Google OIDC token with JFrog Artifactory token
 	rtUsername, rtToken, err := handlers.ExchangeOidcArtifactoryToken(svc, ctx, token, artifactoryUrl, jfrogOidcProviderName, jfrogOidcProviderAudience)
+	if err != nil {
+		logs.Exit("ERROR in JFrog Credentials provider, error in createArtifactoryToken :"+err.Error(), 1)
+	}
+	return rtUsername, rtToken
+}
+
+func handleSpiffeAuth(svc *service.Service, ctx context.Context, logs *logger.Logger, artifactoryUrl string, request utils.CredentialProviderRequest) (string, string) {
+	// get required env variables
+	spiffeEndpointSocket := utils.GetEnvs(logs, "spiffe_endpoint_socket", "")
+	spiffeSvidAudience := utils.GetEnvs(logs, "spiffe_svid_audience", "")
+	jfrogOidcProviderName := utils.GetEnvs(logs, "jfrog_oidc_provider_name", "")
+	jfrogTokenAudience := utils.GetEnvs(logs, "jfrog_token_audience", "")
+
+	if spiffeSvidAudience == "" || jfrogOidcProviderName == "" {
+		logs.Exit("ERROR in JFrog Credentials provider, environment variables missing: spiffe_svid_audience, jfrog_oidc_provider_name", 1)
+	} else {
+		logs.Info(fmt.Sprintf("getting envs - spiffeEndpointSocket: %s, spiffeSvidAudience: %s, jfrogOidcProviderName: %s",
+			spiffeEndpointSocket, spiffeSvidAudience, jfrogOidcProviderName))
+	}
+
+	if jfrogTokenAudience == "" {
+		jfrogTokenAudience = "*@*"
+	}
+
+	// Fetch a JWT-SVID from the SPIFFE Workload API for the configured audience
+	token, err := handlers.GetSpiffeJWTSVID(svc, ctx, spiffeEndpointSocket, spiffeSvidAudience)
+	if err != nil {
+		logs.Exit("ERROR in GetSpiffeJWTSVID :"+err.Error(), 1)
+	}
+
+	// Exchange the JWT-SVID with JFrog Artifactory for an access token
+	rtUsername, rtToken, err := handlers.ExchangeOidcArtifactoryToken(svc, ctx, token, artifactoryUrl, jfrogOidcProviderName, jfrogTokenAudience)
 	if err != nil {
 		logs.Exit("ERROR in JFrog Credentials provider, error in createArtifactoryToken :"+err.Error(), 1)
 	}

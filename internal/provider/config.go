@@ -174,6 +174,10 @@ func CreateProviderConfigFromEnv(isYaml bool, providerHome string, providerConfi
 	addEnvVar("resource_server_name", os.Getenv("RESOURCE_SERVER_NAME"))
 	addEnvVar("google_service_account_email", os.Getenv("GOOGLE_SERVICE_ACCOUNT_EMAIL"))
 	addEnvVar("jfrog_oidc_audience", os.Getenv("JFROG_OIDC_AUDIENCE"))
+	addEnvVar("cloud_provider", os.Getenv("CLOUD_PROVIDER"))
+	addEnvVar("spiffe_endpoint_socket", os.Getenv("SPIFFE_ENDPOINT_SOCKET"))
+	addEnvVar("spiffe_svid_audience", os.Getenv("SPIFFE_SVID_AUDIENCE"))
+	addEnvVar("jfrog_token_audience", os.Getenv("JFROG_TOKEN_AUDIENCE"))
 
 	// Read MatchImages and DefaultCacheDuration from environment variables
 	matchImages := os.Getenv("MATCH_IMAGES")
