@@ -7,7 +7,7 @@ Thank you for your interest in contributing to the JFrog Kubelet Credential Prov
 1. **Create a GitHub issue** for bugs or feature requests
 2. **Comment on the issue** to indicate your intent to work on the feature/bug
 3. **Create a branch** and make your changes
-4. **Test your changes** using `terraform-ci` or `terraform-module` (see respective README files for guidance)
+4. **Test your changes** using `terraform-ci` (see its README for guidance)
 5. **Submit a Pull Request** with testing results
 
 ## Pull Request Requirements

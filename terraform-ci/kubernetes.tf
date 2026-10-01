@@ -55,10 +55,6 @@ resource "kubernetes_pod_v1" "busybox_pod_ds" {
       ]
     }
   }
-
-  depends_on = [
-    module.create_daemonset_with_plugin_enabled
-  ]
 }
 
 # AWS busybox test pod for node group testing
@@ -95,8 +91,6 @@ resource "kubernetes_pod_v1" "busybox_pod" {
       ]
     }
   }
-
-  depends_on = [module.create_daemonset_with_plugin_enabled]
 }
 
 resource "kubernetes_service_account_v1" "busybox_sa_wi" {
@@ -112,8 +106,7 @@ resource "kubernetes_service_account_v1" "busybox_sa_wi" {
   }
   depends_on = [
     aws_iam_role.eks_node_role,
-    null_resource.update_eks_node_role_web_identity,
-    module.manage_eks_nodes_using_jfrog_credential_plugin_web_identity
+    null_resource.update_eks_node_role_web_identity
   ]
 }
 
@@ -154,7 +147,6 @@ resource "kubernetes_pod_v1" "busybox_pod_wi" {
   }
 
   depends_on = [
-    module.create_daemonset_with_plugin_enabled,
     kubernetes_service_account_v1.busybox_sa_wi
   ]
 }
@@ -186,8 +178,4 @@ resource "kubernetes_pod_v1" "azure_busybox_pod_ds" {
       ]
     }
   }
-
-  depends_on = [
-    module.create_azure_daemonset_with_plugin_enabled
-  ]
 }
