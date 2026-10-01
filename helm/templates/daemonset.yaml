@@ -21,6 +21,7 @@ spec:
         {{- include "jfrog-credential-provider.selectorLabels" . | nindent 8 }}
     spec:
       hostPID: true
+      hostNetwork: {{ .Values.hostNetwork | default false }}
       {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
       {{- end }}
