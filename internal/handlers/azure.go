@@ -82,7 +82,7 @@ func GetAzureClusterIdentity(s *service.Service, ctx context.Context, azureAppAu
 	tokenReq.Header.Add("Metadata", "true")
 	tokenResp, err := s.Client.Do(tokenReq)
 	if err != nil {
-		return "", fmt.Errorf("Calling azure identity token failed: %v" + err.Error())
+		return "", fmt.Errorf("Calling azure identity token failed: %v", err)
 	}
 	defer tokenResp.Body.Close()
 
@@ -135,7 +135,7 @@ func GetAzureOIDCToken(s *service.Service, ctx context.Context,
 	// Get oidc token
 	req, err := http.NewRequestWithContext(ctx, "POST", oidcURL, strings.NewReader(data.Encode()))
 	if err != nil {
-		return "", fmt.Errorf("NewRequestWithContext from azure oidc token failed: %v" + err.Error())
+		return "", fmt.Errorf("NewRequestWithContext from azure oidc token failed: %v", err)
 	}
 	// Add headers if needed
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
@@ -143,7 +143,7 @@ func GetAzureOIDCToken(s *service.Service, ctx context.Context,
 	// Make the request
 	resp, err := s.Client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("Calling azure oidc token failed: %v" + err.Error())
+		return "", fmt.Errorf("Calling azure oidc token failed: %v", err)
 	}
 	defer resp.Body.Close()
 
