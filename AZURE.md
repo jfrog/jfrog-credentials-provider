@@ -13,6 +13,7 @@ There are **three** ways to set this up (see [Setup Process](#-setup-process) fo
 - **Option A — Nodepool Managed Identity:** Azure AD app registration **+ federated credential**.
 - **Option B — Workload Identity (projected SA tokens):** ⭐ **No Azure AD app registration at all** — the simplest and most scalable option; Artifactory trusts the cluster's OIDC issuer and the workload's Kubernetes Service Account directly.
 - **Option C — IMDS Direct:** Azure AD app registration but **no federated credential** (uses an app-role assignment instead), to avoid Azure's federated-credential limit.
+- **Option D — One AWS role:** set `azure_auth_method` to `assume_aws_role`. The provider sends the node IMDS token to `sts:AssumeRoleWithWebIdentity` and Artifactory sees that AWS role. See [AWS.md Option D](./AWS.md#option-d--assume-the-same-external-role-from-azure-or-gcp).
 
 > The diagram and "How It Works" below describe **Option A** (federated credentials). Options B and C are simpler — see their dedicated sections ([4B](#step-4b-workload-identity--projected-service-account-tokens-no-app-registration), [4C](#imds-direct-authentication)).
 

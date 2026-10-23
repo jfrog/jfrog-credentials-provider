@@ -22,6 +22,7 @@ import (
 	"io"
 	service "jfrog-credential-provider/internal"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -148,6 +149,45 @@ func getServiceAccountOidcToken(s *service.Service, ctx context.Context,
 		return "", fmt.Errorf("error reading google oidc response")
 	}
 	return myResponse.Token, nil
+}
+
+func googleMetadataIdentityURL(audience string) string {
+	query := url.Values{}
+	query.Set("audience", audience)
+	query.Set("format", "full")
+	return "http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/identity?" + query.Encode()
+}
+
+// GetGoogleMetadataIdentityToken reads a Google ID token from the GCE metadata server.
+// The response body is the raw JWT. Audience sts.amazonaws.com matches the built-in AWS Google federation key accounts.google.com:oaud.
+func GetGoogleMetadataIdentityToken(s *service.Service, ctx context.Context, audience string) (string, error) {
+	if audience == "" {
+		return "", fmt.Errorf("gcp metadata identity token requires an audience")
+	}
+	tokenURL := googleMetadataIdentityURL(audience)
+	s.Logger.Info("google metadata identity url :" + tokenURL)
+	req, err := http.NewRequestWithContext(ctx, "GET", tokenURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("NewRequestWithContext for google metadata identity token failed: %v", err)
+	}
+	req.Header.Add("Metadata-Flavor", "Google")
+	resp, err := s.Client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("Calling google metadata identity token failed: %v", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("error reading google metadata identity token: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("GET google metadata identity token failed with status code: %d, body: %s", resp.StatusCode, string(body))
+	}
+	token := strings.TrimSpace(string(body))
+	if token == "" {
+		return "", fmt.Errorf("google metadata identity token response was empty")
+	}
+	return token, nil
 }
 
 func CheckIfGoogle(s *service.Service, ctx context.Context) (bool, error) {

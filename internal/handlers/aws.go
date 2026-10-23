@@ -289,6 +289,63 @@ func GetAWSSignedRequest(s *service.Service, ctx context.Context, serviceAccount
 		RegionName:   region,
 		SessionToken: credentials.Token,
 	}
+	return signGetCallerIdentity(s, region, creds)
+}
+
+// AssumeExternalRoleWithWebIdentity exchanges a cloud identity token for the
+// shared role, then signs GetCallerIdentity with those credentials.
+// The STS call uses anonymous credentials because Azure and GCP nodes have no EC2 role.
+func AssumeExternalRoleWithWebIdentity(s *service.Service, ctx context.Context, webIdentityToken, roleArn, region string, durationSeconds int) (*http.Request, error) {
+	if region == "" || region == "*" {
+		return nil, fmt.Errorf("assume_aws_role requires a valid AWS region; got %q (set aws_region)", region)
+	}
+	if roleArn == "" {
+		return nil, fmt.Errorf("assume_aws_role requires aws_external_role_arn")
+	}
+	if strings.TrimSpace(webIdentityToken) == "" {
+		return nil, fmt.Errorf("assume_aws_role received an empty identity token")
+	}
+	s.Logger.Info("assuming external role with web identity, role ARN:" + roleArn + ", region:" + region)
+	awsCreds, err := assumeRoleWithWebIdentityAnonymous(ctx, roleArn, region, strings.TrimSpace(webIdentityToken), int32(durationSeconds))
+	if err != nil {
+		return nil, fmt.Errorf("AssumeRoleWithWebIdentity failed: %v", err)
+	}
+	creds := signer.AwsCredentials{
+		AccessKey:    *awsCreds.AccessKeyId,
+		SecretKey:    *awsCreds.SecretAccessKey,
+		RegionName:   region,
+		SessionToken: *awsCreds.SessionToken,
+	}
+	return signGetCallerIdentity(s, region, creds)
+}
+
+func assumeRoleWithWebIdentityAnonymous(ctx context.Context, roleArn, region, webIdentityToken string, durationSeconds int32) (*types.Credentials, error) {
+	cfg, err := config.LoadDefaultConfig(ctx,
+		config.WithRegion(region),
+		config.WithCredentialsProvider(aws.AnonymousCredentials{}),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("error loading anonymous AWS config: %v", err)
+	}
+	input := &sts.AssumeRoleWithWebIdentityInput{
+		RoleArn:          aws.String(roleArn),
+		RoleSessionName:  aws.String("jfrog-credential-provider-" + utils.RandString(10)),
+		WebIdentityToken: aws.String(webIdentityToken),
+	}
+	if durationSeconds > 0 {
+		input.DurationSeconds = aws.Int32(durationSeconds)
+	}
+	result, err := sts.NewFromConfig(cfg).AssumeRoleWithWebIdentity(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	if result.Credentials == nil || result.Credentials.AccessKeyId == nil || result.Credentials.SecretAccessKey == nil || result.Credentials.SessionToken == nil {
+		return nil, fmt.Errorf("AssumeRoleWithWebIdentity returned empty credentials")
+	}
+	return result.Credentials, nil
+}
+
+func signGetCallerIdentity(s *service.Service, region string, creds signer.AwsCredentials) (*http.Request, error) {
 	stsGlobalURL := "https://sts.amazonaws.com?Action=GetCallerIdentity&Version=2011-06-15"
 
 	if region != "*" && region != "" {

@@ -483,6 +483,45 @@ The credential provider assumes the external role for a configurable session dur
 
 ---
 
+### Option D: 🌐 Assume the same external role from Azure or GCP
+
+Option B starts from EC2 instance credentials. AKS and GKE nodes do not have those credentials. `assume_aws_role` reads the node identity token and calls `sts:AssumeRoleWithWebIdentity` on the same `aws_external_role_arn`. Artifactory still sees one role ARN.
+
+The Artifactory binding is the same IAM role binding as Option B. Register `aws_external_role_arn` once.
+
+**Flow:**
+
+1. On Azure, the provider reads an IMDS token for the node pool client id. The default resource is `https://management.azure.com/`.
+2. On GCP, the provider reads a GCE metadata identity token. The default audience is `sts.amazonaws.com`.
+3. The provider calls `AssumeRoleWithWebIdentity` with anonymous AWS credentials. The call does not need an EC2 role.
+4. The provider signs `GetCallerIdentity` and exchanges that request with Artifactory, same as Option B.
+
+##### Azure trust
+
+Create an IAM OIDC provider for the live issuer `https://sts.windows.net/<tenant-id>/`. Add `sts:AssumeRoleWithWebIdentity` on the external role. Condition the statement on the token `aud` and `sub` you read from a node. Pin `azure_nodepool_client_id` to the kubelet client id that minted the token.
+
+Set `azure.azure_auth_method` to `assume_aws_role`. Required values: `aws_external_role_arn`, `aws_region`, `azure_nodepool_client_id`.
+
+##### GCP trust
+
+Use the built-in federated principal `accounts.google.com`. AWS already trusts that issuer.
+
+Map the condition keys like this:
+
+| IAM condition key | Token claim | Example |
+| --- | --- | --- |
+| `accounts.google.com:oaud` | `aud` | `sts.amazonaws.com` |
+| `accounts.google.com:aud` | `azp` | numeric service account id |
+| `accounts.google.com:sub` | `sub` | numeric service account id |
+
+Leave the account without a custom IAM OIDC provider for `accounts.google.com`. A custom provider for that issuer makes STS return `InvalidIdentityToken`.
+
+Set `gcp.gcp_auth_method` to `assume_aws_role`. Required values: `aws_external_role_arn`, `aws_region`.
+
+Example values: `./examples/azure-assume-aws-role-values.yaml` and `./examples/gcp-assume-aws-role-values.yaml`.
+
+---
+
 ### Option C: 🔑 Cognito OIDC
 
 This method uses AWS Cognito for OIDC authentication. It provides a standards-based OIDC flow and is recommended for organizations that want to use OIDC throughout their infrastructure.
@@ -816,6 +855,17 @@ Update the values file at `./examples/aws-projected-sa-values.yaml` with your co
 | `artifactoryUrl` | Your JFrog Artifactory URL | `your-instance.jfrog.io` |
 
 Update the values file at `./examples/aws-assume-external-role-values.yaml` with your configuration values.
+
+#### For Azure or GCP web identity into the external role
+
+| Configuration Value | Description | Example |
+|---------------------|-------------|---------|
+| `azure_auth_method` or `gcp_auth_method` | Authentication method | `assume_aws_role` |
+| `aws_external_role_arn` | ARN registered in Artifactory | `arn:aws:iam::222222222222:role/jfrog-credentials-provider-external-role` |
+| `aws_region` | Region for the STS client | `us-east-1` |
+| `azure_nodepool_client_id` | Azure only. Kubelet managed identity client id | `00000000-0000-0000-0000-000000000000` |
+
+Update `./examples/azure-assume-aws-role-values.yaml` or `./examples/gcp-assume-aws-role-values.yaml`.
 
 #### For Cognito OIDC Method
 

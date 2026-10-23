@@ -300,6 +300,22 @@ env:
   - name: azure_auth_method
     value: "{{ $item.azure.azure_auth_method }}"
   {{- end }}
+  {{- if eq ($item.azure.azure_auth_method | default "") "assume_aws_role" }}
+  - name: aws_external_role_arn
+    value: {{ $item.azure.aws_external_role_arn | quote }}
+  - name: aws_region
+    value: {{ $item.azure.aws_region | quote }}
+  {{- if $item.azure.azure_aws_token_resource }}
+  - name: azure_aws_token_resource
+    value: {{ $item.azure.azure_aws_token_resource | quote }}
+  {{- end }}
+  {{- if $item.azure.aws_external_role_session_duration_seconds }}
+  - name: aws_external_role_session_duration_seconds
+    value: {{ $item.azure.aws_external_role_session_duration_seconds | toString | quote }}
+  {{- end }}
+  - name: secret_ttl_seconds
+    value: {{ $item.azure.secret_ttl_seconds | default 14400 | toString | quote }}
+  {{- end }}
   {{- if $item.azure.azure_app_uri }}
   - name: azure_app_uri
     value: "{{ $item.azure.azure_app_uri }}"

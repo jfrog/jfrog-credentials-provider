@@ -6,10 +6,11 @@ This guide walks you through setting up the JFrog Kubelet Credential Provider on
 
 The JFrog Credential Provider uses Google Service Accounts with OIDC capabilities to authenticate with JFrog Artifactory via OpenID Connect (OIDC). This eliminates the need for manual image pull secret management by dynamically retrieving credential when pulling container images.
 
-There are **two authentication methods** available:
+There are **three authentication methods** available:
 
 - **Option A: Node pool / Node-level identity** — The credential provider uses the GKE node's service account (via the node metadata server). All pods on the node share the same identity when pulling images.
 - **Option B: Workload Identity (Pod-level identity)** — Uses GKE Workload Identity so that the Kubelet provides a Pod's Kubernetes Service Account (KSA) token to the plugin. The plugin exchanges the K8s JWT with GCP for a Google access token, and that identity is used with Artifactory. Image pull permissions are tied to the specific workload.
+- **Option C: One AWS role** — set `gcp_auth_method` to `assume_aws_role`. The provider reads a GCE metadata identity token and calls `sts:AssumeRoleWithWebIdentity`. Trust the built-in principal `accounts.google.com`. See [AWS.md Option D](./AWS.md#option-d--assume-the-same-external-role-from-azure-or-gcp).
 
 For more information about the credential provider architecture, see the [main README](./README.md).
 
