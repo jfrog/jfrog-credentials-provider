@@ -158,6 +158,15 @@ providerConfig:
       # google_service_account_email: ""
       # jfrog_oidc_audience: ""
       # jfrog_oidc_provider_name: ""
+      # assume_aws_role reads a GCE metadata identity token and calls
+      # sts:AssumeRoleWithWebIdentity on aws_external_role_arn.
+      # Use the built-in AWS principal accounts.google.com. Do not create an
+      # IAM OIDC provider for that issuer.
+      # gcp_auth_method: "assume_aws_role"
+      # aws_external_role_arn: ""
+      # aws_region: "us-east-1"
+      # gcp_aws_token_audience: "sts.amazonaws.com"
+      # secret_ttl_seconds: 14400
     # Azure configuration
     azure:
       enabled: false
@@ -177,6 +186,13 @@ providerConfig:
       # Defaults to "*@*" when unset, which matches the documented identity mapping token_spec.audience.
       # Only set this if your Artifactory OIDC identity mapping uses a non-wildcard token_spec.audience.
       # jfrog_token_audience: "*@*"
+      # assume_aws_role reads the node IMDS token and calls
+      # sts:AssumeRoleWithWebIdentity on aws_external_role_arn.
+      # azure_auth_method: "assume_aws_role"
+      # aws_external_role_arn: ""
+      # aws_region: "us-east-1"
+      # azure_aws_token_resource: "https://management.azure.com/"
+      # secret_ttl_seconds: 14400
 
 
 # Update strategy for the daemonset

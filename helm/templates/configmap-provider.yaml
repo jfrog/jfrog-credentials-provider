@@ -55,12 +55,31 @@ data:
       value: "google"
     - name: artifactory_url
       value: "{{ .artifactoryUrl }}"
+    {{- if eq (.gcp.gcp_auth_method | default "") "assume_aws_role" }}
+    - name: gcp_auth_method
+      value: "assume_aws_role"
+    - name: aws_external_role_arn
+      value: {{ .gcp.aws_external_role_arn | quote }}
+    - name: aws_region
+      value: {{ .gcp.aws_region | quote }}
+    {{- if .gcp.gcp_aws_token_audience }}
+    - name: gcp_aws_token_audience
+      value: {{ .gcp.gcp_aws_token_audience | quote }}
+    {{- end }}
+    {{- if .gcp.aws_external_role_session_duration_seconds }}
+    - name: aws_external_role_session_duration_seconds
+      value: {{ .gcp.aws_external_role_session_duration_seconds | toString | quote }}
+    {{- end }}
+    - name: secret_ttl_seconds
+      value: {{ .gcp.secret_ttl_seconds | default 14400 | toString | quote }}
+    {{- else }}
     - name: google_service_account_email
       value: "{{ .gcp.google_service_account_email }}"
     - name: jfrog_oidc_audience
       value: "{{ .gcp.jfrog_oidc_audience }}"
     - name: jfrog_oidc_provider_name
       value: "{{ .gcp.jfrog_oidc_provider_name }}"
+    {{- end }}
     - name: disable_provider_autoupdate
       value: "{{ not $.Values.autoUpgrade }}"
     - name: log_level

@@ -351,8 +351,14 @@ func ValidateJfrogProviderConfig(config Provider, cloudProvider string) error {
 
 	case CloudProviderAzure:
 		azureAuthMethod := GetEnvVarValue(config.Env, "azure_auth_method")
+		if azureAuthMethod == "assume_aws_role" {
+			if GetEnvVarValue(config.Env, "aws_external_role_arn") == "" || GetEnvVarValue(config.Env, "aws_region") == "" || GetEnvVarValue(config.Env, "azure_nodepool_client_id") == "" {
+				return fmt.Errorf("azure_auth_method assume_aws_role requires aws_external_role_arn, aws_region, and azure_nodepool_client_id")
+			}
+			break
+		}
 		if azureAuthMethod != "" && azureAuthMethod != "imds_direct" {
-			return fmt.Errorf("azure_auth_method can only be set as imds_direct however the current value is :%s", azureAuthMethod)
+			return fmt.Errorf("azure_auth_method can only be set as imds_direct or assume_aws_role however the current value is :%s", azureAuthMethod)
 		}
 		if config.TokenAttributes != nil && slices.Contains(config.TokenAttributes.RequiredServiceAccountAnnotationKeys, "JFrogExchange") {
 			if GetEnvVarValue(config.Env, "azure_app_audience") == "" || GetEnvVarValue(config.Env, "jfrog_oidc_provider_name") == "" {
@@ -368,6 +374,16 @@ func ValidateJfrogProviderConfig(config Provider, cloudProvider string) error {
 			return fmt.Errorf("ERROR in JFrog Credentials provider, environment variables missing: azure_app_client_id, azure_tenant_id, azure_app_audience, azure_nodepool_client_id, jfrog_oidc_provider_name")
 		}
 	case CloudProviderGoogle:
+		gcpAuthMethod := GetEnvVarValue(config.Env, "gcp_auth_method")
+		if gcpAuthMethod == "assume_aws_role" {
+			if GetEnvVarValue(config.Env, "aws_external_role_arn") == "" || GetEnvVarValue(config.Env, "aws_region") == "" {
+				return fmt.Errorf("gcp_auth_method assume_aws_role requires aws_external_role_arn and aws_region")
+			}
+			break
+		}
+		if gcpAuthMethod != "" {
+			return fmt.Errorf("gcp_auth_method can only be set as assume_aws_role however the current value is :%s", gcpAuthMethod)
+		}
 		if GetEnvVarValue(config.Env, "google_service_account_email") == "" || GetEnvVarValue(config.Env, "jfrog_oidc_provider_name") == "" || GetEnvVarValue(config.Env, "jfrog_oidc_audience") == "" {
 			return fmt.Errorf("ERROR in JFrog Credentials provider, environment variables missing: google_service_account_email, jfrog_oidc_provider_name, jfrog_oidc_audience")
 		}

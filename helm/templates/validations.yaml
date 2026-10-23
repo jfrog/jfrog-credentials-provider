@@ -112,10 +112,17 @@
 {{- range .Values.providerConfig }}
   {{- if and .azure .azure.enabled }}
     {{- $azureAuthMethod := .azure.azure_auth_method | default "" }}
-    {{- if and (ne $azureAuthMethod "") (ne $azureAuthMethod "imds_direct") }}
+    {{- if and (ne $azureAuthMethod "") (ne $azureAuthMethod "imds_direct") (ne $azureAuthMethod "assume_aws_role") }}
       {{- $errorMsg := printf "\nERROR: providerConfig '%s' has an invalid azure.azure_auth_method %q.\n" .name $azureAuthMethod }}
-      {{- $errorMsg = printf "%sSupported values are \"\" (legacy federated / projected) or \"imds_direct\".\n" $errorMsg }}
+      {{- $errorMsg = printf "%sSupported values are \"\" (legacy federated / projected), \"imds_direct\", or \"assume_aws_role\".\n" $errorMsg }}
       {{- fail $errorMsg }}
+    {{- end }}
+    {{- if eq $azureAuthMethod "assume_aws_role" }}
+      {{- if or (not .azure.aws_external_role_arn) (not .azure.aws_region) (not .azure.azure_nodepool_client_id) }}
+        {{- $errorMsg := printf "\nERROR: providerConfig '%s' has azure.azure_auth_method=\"assume_aws_role\" but is missing required fields.\n" .name }}
+        {{- $errorMsg = printf "%sRequired: aws_external_role_arn, aws_region, azure_nodepool_client_id.\n" $errorMsg }}
+        {{- fail $errorMsg }}
+      {{- end }}
     {{- end }}
     {{/* imds_direct is a node-identity flow and is mutually exclusive with projected tokens (tokenAttributes) */}}
     {{- if and (eq $azureAuthMethod "imds_direct") (and .tokenAttributes .tokenAttributes.enabled) }}
@@ -131,6 +138,17 @@
         {{- $errorMsg = printf "%sRequired: azure_app_client_id, azure_nodepool_client_id, jfrog_oidc_provider_name.\n" $errorMsg }}
         {{- fail $errorMsg }}
       {{- end }}
+    {{- end }}
+  {{- end }}
+{{- end }}
+
+{{/* GCP assume_aws_role requires the shared role ARN and an AWS region */}}
+{{- range .Values.providerConfig }}
+  {{- if and .gcp .gcp.enabled (eq (.gcp.gcp_auth_method | default "") "assume_aws_role") }}
+    {{- if or (not .gcp.aws_external_role_arn) (not .gcp.aws_region) }}
+      {{- $errorMsg := printf "\nERROR: providerConfig '%s' has gcp.gcp_auth_method=\"assume_aws_role\" but is missing required fields.\n" .name }}
+      {{- $errorMsg = printf "%sRequired: aws_external_role_arn, aws_region.\n" $errorMsg }}
+      {{- fail $errorMsg }}
     {{- end }}
   {{- end }}
 {{- end }}

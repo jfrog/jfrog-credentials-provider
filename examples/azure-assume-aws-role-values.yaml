@@ -1,0 +1,30 @@
+providerConfig:
+  - name: jfrog-credentials-provider
+    artifactoryUrl: <artifactory-url>
+    matchImages:
+      - "*.<test.your-org.domain.io>"
+    defaultCacheDuration: 5h
+    azure:
+      enabled: true
+      azure_auth_method: "assume_aws_role"
+      azure_nodepool_client_id: "<kubelet-managed-identity-client-id>"
+      aws_external_role_arn: "<target-role-arn>"
+      aws_region: "us-east-1"
+      # Default resource is https://management.azure.com/ when this is omitted.
+      # azure_aws_token_resource: "https://management.azure.com/"
+      secret_ttl_seconds: 14400
+
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/arch
+              operator: In
+              values:
+                - amd64
+                - arm64
+            - key: credentialsProviderEnabled
+              operator: In
+              values:
+                - "true"

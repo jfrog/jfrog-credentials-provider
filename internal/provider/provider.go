@@ -132,11 +132,11 @@ func cloudProviderAuth(svc *service.Service, ctx context.Context, logs *logger.L
 		return rtUsername, rtToken
 	case utils.CloudProviderAzure:
 		logs.Debug("Detected Azure cloud provider")
-		rtUsername, rtToken = handleAzureAuth(svc, ctx, logs, artifactoryUrl, request)
+		rtUsername, rtToken = handleAzureAuth(svc, ctx, logs, artifactoryUrl, secretTTL, request)
 		return rtUsername, rtToken
 	case utils.CloudProviderGoogle:
 		logs.Debug("Detected Google cloud provider")
-		rtUsername, rtToken = handleGoogleAuth(svc, ctx, logs, artifactoryUrl, request)
+		rtUsername, rtToken = handleGoogleAuth(svc, ctx, logs, artifactoryUrl, secretTTL, request)
 		return rtUsername, rtToken
 	default:
 		logs.Exit("ERROR in JFrog Credentials provider, cloud_provider value should be either aws, azure, or google", 1)
@@ -257,13 +257,16 @@ func handleAWSAuth(svc *service.Service, ctx context.Context, logs *logger.Logge
 	return rtUsername, rtToken
 }
 
-func handleAzureAuth(svc *service.Service, ctx context.Context, logs *logger.Logger, artifactoryUrl string, request utils.CredentialProviderRequest) (string, string) {
+func handleAzureAuth(svc *service.Service, ctx context.Context, logs *logger.Logger, artifactoryUrl, secretTTL string, request utils.CredentialProviderRequest) (string, string) {
 
 	var token string
 	var err error
 
 	azureAuthMethod := os.Getenv("azure_auth_method")
-	if azureAuthMethod == "" {
+	if azureAuthMethod == "assume_aws_role" {
+		logs.Info("azureAuthMethod set to assume_aws_role, will exchange the node IMDS token for the shared AWS role")
+		return assumeAwsRoleFromCloudIdentity(svc, ctx, logs, "azure", artifactoryUrl, secretTTL)
+	} else if azureAuthMethod == "" {
 		logs.Info("azureAuthMethod not set, will default to legacy federated credentials or projected tokens if tokenAttributes is enabled")
 	} else if azureAuthMethod == "imds_direct" {
 		logs.Info("azureAuthMethod set to imds_direct, will use IMDS to get app's access token")
@@ -329,7 +332,15 @@ func handleAzureAuth(svc *service.Service, ctx context.Context, logs *logger.Log
 	return rtUsername, rtToken
 }
 
-func handleGoogleAuth(svc *service.Service, ctx context.Context, logs *logger.Logger, artifactoryUrl string, request utils.CredentialProviderRequest) (string, string) {
+func handleGoogleAuth(svc *service.Service, ctx context.Context, logs *logger.Logger, artifactoryUrl, secretTTL string, request utils.CredentialProviderRequest) (string, string) {
+	gcpAuthMethod := os.Getenv("gcp_auth_method")
+	if gcpAuthMethod == "assume_aws_role" {
+		logs.Info("gcpAuthMethod set to assume_aws_role, will exchange the GCE metadata identity token for the shared AWS role")
+		return assumeAwsRoleFromCloudIdentity(svc, ctx, logs, "gcp", artifactoryUrl, secretTTL)
+	} else if gcpAuthMethod != "" {
+		logs.Exit("wrong gcp_auth_method value :"+gcpAuthMethod, 1)
+	}
+
 	// get required env variables
 	googleServiceAccountEmail := utils.GetEnvs(logs, "google_service_account_email", "")
 	jfrogOidcProviderAudience := utils.GetEnvs(logs, "jfrog_oidc_audience", "")
@@ -359,6 +370,55 @@ func handleGoogleAuth(svc *service.Service, ctx context.Context, logs *logger.Lo
 	rtUsername, rtToken, err := handlers.ExchangeOidcArtifactoryToken(svc, ctx, token, artifactoryUrl, jfrogOidcProviderName, jfrogOidcProviderAudience)
 	if err != nil {
 		logs.Exit("ERROR in JFrog Credentials provider, error in createArtifactoryToken :"+err.Error(), 1)
+	}
+	return rtUsername, rtToken
+}
+
+func assumeAwsRoleFromCloudIdentity(svc *service.Service, ctx context.Context, logs *logger.Logger, cloud, artifactoryUrl, secretTTL string) (string, string) {
+	roleArn := utils.GetEnvs(logs, "aws_external_role_arn", "")
+	region := utils.GetEnvs(logs, "aws_region", "")
+	if roleArn == "" || region == "" {
+		logs.Exit("ERROR in JFrog Credentials provider, assume_aws_role requires aws_external_role_arn and aws_region", 1)
+	}
+	durationSeconds := 3600
+	if raw := os.Getenv("aws_external_role_session_duration_seconds"); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed <= 0 || parsed > 43200 {
+			logs.Info("bad value for aws_external_role_session_duration_seconds, defaulting to 3600")
+		} else {
+			durationSeconds = parsed
+		}
+	}
+
+	var identityToken string
+	var err error
+	switch cloud {
+	case "azure":
+		clientID := utils.GetEnvs(logs, "azure_nodepool_client_id", "")
+		resource := utils.GetEnvs(logs, "azure_aws_token_resource", "https://management.azure.com/")
+		if clientID == "" {
+			logs.Exit("ERROR in JFrog Credentials provider, assume_aws_role on Azure requires azure_nodepool_client_id", 1)
+		}
+		logs.Info("reading Azure IMDS token for resource " + resource)
+		identityToken, err = handlers.GetAzureClusterIdentity(svc, ctx, resource, clientID)
+	case "gcp":
+		audience := utils.GetEnvs(logs, "gcp_aws_token_audience", "sts.amazonaws.com")
+		logs.Info("reading GCE metadata identity token for audience " + audience)
+		identityToken, err = handlers.GetGoogleMetadataIdentityToken(svc, ctx, audience)
+	default:
+		logs.Exit("ERROR in JFrog Credentials provider, assume_aws_role cloud must be azure or gcp", 1)
+	}
+	if err != nil {
+		logs.Exit("ERROR reading cloud identity token for assume_aws_role: "+err.Error(), 1)
+	}
+
+	req, err := handlers.AssumeExternalRoleWithWebIdentity(svc, ctx, identityToken, roleArn, region, durationSeconds)
+	if err != nil {
+		logs.Exit("ERROR in AssumeExternalRoleWithWebIdentity: "+err.Error(), 1)
+	}
+	rtUsername, rtToken, err := handlers.ExchangeAssumedRoleArtifactoryToken(svc, ctx, req, artifactoryUrl, secretTTL)
+	if err != nil {
+		logs.Exit("Error in createArtifactoryToken: "+err.Error(), 1)
 	}
 	return rtUsername, rtToken
 }

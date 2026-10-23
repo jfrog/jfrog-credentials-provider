@@ -1,0 +1,29 @@
+providerConfig:
+  - name: jfrog-credentials-provider
+    artifactoryUrl: <artifactory-url>
+    matchImages:
+      - "*.<test.your-org.domain.io>"
+    defaultCacheDuration: 5h
+    gcp:
+      enabled: true
+      gcp_auth_method: "assume_aws_role"
+      aws_external_role_arn: "<target-role-arn>"
+      aws_region: "us-east-1"
+      # Default audience is sts.amazonaws.com when this is omitted.
+      # gcp_aws_token_audience: "sts.amazonaws.com"
+      secret_ttl_seconds: 14400
+
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/arch
+              operator: In
+              values:
+                - amd64
+                - arm64
+            - key: credentialsProviderEnabled
+              operator: In
+              values:
+                - "true"
